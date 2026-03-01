@@ -1,0 +1,388 @@
+---
+title: Search Engine Management
+description: Add and configure custom search engines in Glide Browser
+---
+
+Glide Browser allows you to add custom search engines programmatically, giving you quick access to any search service directly from the address bar.
+
+## Adding a Search Engine
+
+Use the `glide.search_engines.add()` API to register custom search engines:
+
+```typescript
+await glide.search_engines.add({
+  name: "Discogs",
+  keyword: "disc",
+  search_url: "https://www.discogs.com/search/?q={searchTerms}",
+  favicon_url: "https://www.discogs.com/favicon.ico",
+});
+```
+
+Now you can search Discogs by typing `disc <query>` in the address bar.
+
+## Search Engine Configuration
+
+The configuration format matches the WebExtension `chrome_settings_overrides.search_provider` manifest specification.
+
+### Required Properties
+
+<ParamField path="name" type="string" required>
+  The display name of the search engine
+</ParamField>
+
+<ParamField path="search_url" type="string" required>
+  The URL to use for searches. Must contain `{searchTerms}` as a placeholder for the search query.
+</ParamField>
+
+### Optional Properties
+
+<ParamField path="keyword" type="string | string[]">
+  Keyword(s) to trigger this search engine. Can be a single string or array of strings.
+  
+  ```typescript
+  keyword: "@wiki"           // Single keyword
+  keyword: ["@w", "@wiki"]  // Multiple keywords
+  ```
+</ParamField>
+
+<ParamField path="suggest_url" type="string">
+  URL for search suggestions. Must contain `{searchTerms}` placeholder.
+  
+  ```typescript
+  suggest_url: "https://example.com/suggest?q={searchTerms}"
+  ```
+</ParamField>
+
+<ParamField path="favicon_url" type="string">
+  URL to the search engine's favicon
+</ParamField>
+
+<ParamField path="is_default" type="boolean">
+  Set this search engine as the default. Queries without a keyword will use this engine.
+  
+  ```typescript
+  is_default: true
+  ```
+</ParamField>
+
+<ParamField path="search_url_get_params" type="string">
+  Additional GET parameters for the search URL
+  
+  ```typescript
+  search_url: "https://example.com/search",
+  search_url_get_params: "q={searchTerms}&format=json&lang=en"
+  // Results in: https://example.com/search?q=<query>&format=json&lang=en
+  ```
+</ParamField>
+
+<ParamField path="search_url_post_params" type="string">
+  Use POST method instead of GET, with these parameters in the request body
+  
+  ```typescript
+  search_url: "https://example.com/search",
+  search_url_post_params: "q={searchTerms}&format=json"
+  ```
+</ParamField>
+
+<ParamField path="suggest_url_get_params" type="string">
+  Additional GET parameters for the suggestion URL
+  
+  ```typescript
+  suggest_url: "https://example.com/suggest",
+  suggest_url_get_params: "q={searchTerms}&type=json"
+  ```
+</ParamField>
+
+## Examples
+
+### Basic Search Engine
+
+```typescript
+await glide.search_engines.add({
+  name: "GitHub",
+  keyword: "gh",
+  search_url: "https://github.com/search?q={searchTerms}",
+});
+```
+
+Usage: Type `gh glide browser` in the address bar
+
+### With Suggestions
+
+```typescript
+await glide.search_engines.add({
+  name: "DuckDuckGo",
+  keyword: "ddg",
+  search_url: "https://duckduckgo.com/?q={searchTerms}",
+  suggest_url: "https://duckduckgo.com/ac/?q={searchTerms}",
+  favicon_url: "https://duckduckgo.com/favicon.ico",
+});
+```
+
+### Multiple Keywords
+
+```typescript
+await glide.search_engines.add({
+  name: "Wikipedia",
+  keyword: ["@wiki", "@w", "wiki"],
+  search_url: "https://en.wikipedia.org/wiki/Special:Search?search={searchTerms}",
+  suggest_url: "https://en.wikipedia.org/w/api.php?action=opensearch&search={searchTerms}",
+});
+```
+
+Usage: Any of these will work:
+- `@wiki quantum physics`
+- `@w quantum physics`  
+- `wiki quantum physics`
+
+### Default Search Engine
+
+```typescript
+await glide.search_engines.add({
+  name: "Brave Search",
+  keyword: "brave",
+  search_url: "https://search.brave.com/search?q={searchTerms}",
+  suggest_url: "https://search.brave.com/api/suggest?q={searchTerms}",
+  is_default: true,
+});
+```
+
+Now typing a query without a keyword will use Brave Search.
+
+### POST Method Search
+
+```typescript
+await glide.search_engines.add({
+  name: "API Search",
+  keyword: "api",
+  search_url: "https://api.example.com/search",
+  search_url_post_params: "q={searchTerms}&format=json&key=secret",
+});
+```
+
+### GET Parameters
+
+```typescript
+await glide.search_engines.add({
+  name: "YouTube",
+  keyword: "yt",
+  search_url: "https://www.youtube.com/results",
+  search_url_get_params: "search_query={searchTerms}&sp=CAI%253D",
+});
+// Results in: https://www.youtube.com/results?search_query=<query>&sp=CAI%253D
+```
+
+## Dynamic Search Engines
+
+Add search engines conditionally based on context:
+
+```typescript
+// Add different search engines based on OS
+if (glide.ctx.os === "macosx") {
+  await glide.search_engines.add({
+    name: "macOS Apps",
+    keyword: "app",
+    search_url: "https://apps.apple.com/search?term={searchTerms}",
+  });
+}
+
+// Add based on environment variable
+const apiKey = glide.env.get("SEARCH_API_KEY");
+if (apiKey) {
+  await glide.search_engines.add({
+    name: "Private API",
+    keyword: "priv",
+    search_url: `https://api.example.com/search?key=${apiKey}&q={searchTerms}`,
+  });
+}
+```
+
+## Managing Search Engines
+
+### Updating an Existing Engine
+
+Calling `glide.search_engines.add()` with an existing name will update it:
+
+```typescript
+// Initial configuration
+await glide.search_engines.add({
+  name: "Example",
+  keyword: "@old",
+  search_url: "https://old.example.com/search?q={searchTerms}",
+});
+
+// Update it (same name)
+await glide.search_engines.add({
+  name: "Example",  // Same name = update
+  keyword: "@new",
+  search_url: "https://new.example.com/search?q={searchTerms}",
+});
+// Old keyword and URL are replaced
+```
+
+### Removing Search Engines
+
+<Warning>
+  Search engines added via the API are not automatically removed when you remove the code. You must manually remove them through Firefox's preferences at `about:preferences#search`.
+</Warning>
+
+## Best Practices
+
+### Use ConfigLoaded Autocmd
+
+Register search engines in a `ConfigLoaded` autocmd to ensure they're added on both initial load and config reload:
+
+```typescript
+glide.autocmds.create("ConfigLoaded", async () => {
+  await glide.search_engines.add({
+    name: "My Search",
+    keyword: "ms",
+    search_url: "https://example.com/search?q={searchTerms}",
+  });
+});
+```
+
+### Organize Multiple Engines
+
+```typescript
+const searchEngines = [
+  {
+    name: "GitHub",
+    keyword: "gh",
+    search_url: "https://github.com/search?q={searchTerms}",
+  },
+  {
+    name: "Stack Overflow",
+    keyword: "so",
+    search_url: "https://stackoverflow.com/search?q={searchTerms}",
+  },
+  {
+    name: "npm",
+    keyword: "npm",
+    search_url: "https://www.npmjs.com/search?q={searchTerms}",
+  },
+];
+
+glide.autocmds.create("ConfigLoaded", async () => {
+  for (const engine of searchEngines) {
+    await glide.search_engines.add(engine);
+  }
+});
+```
+
+### Site-Specific Search Shortcuts
+
+Create shortcuts for searching within specific sites:
+
+```typescript
+const siteSearches = [
+  { name: "Reddit", keyword: "r", domain: "reddit.com" },
+  { name: "MDN", keyword: "mdn", domain: "developer.mozilla.org" },
+  { name: "Rust Docs", keyword: "rust", domain: "doc.rust-lang.org" },
+];
+
+glide.autocmds.create("ConfigLoaded", async () => {
+  for (const { name, keyword, domain } of siteSearches) {
+    await glide.search_engines.add({
+      name,
+      keyword,
+      search_url: `https://www.google.com/search?q=site:${domain}+{searchTerms}`,
+    });
+  }
+});
+```
+
+## Common Search Engines
+
+Here are some popular search engines ready to use:
+
+<CodeGroup>
+```typescript Developer Tools
+await glide.search_engines.add({
+  name: "MDN",
+  keyword: "mdn",
+  search_url: "https://developer.mozilla.org/en-US/search?q={searchTerms}",
+});
+
+await glide.search_engines.add({
+  name: "Stack Overflow",
+  keyword: "so",
+  search_url: "https://stackoverflow.com/search?q={searchTerms}",
+});
+
+await glide.search_engines.add({
+  name: "GitHub",
+  keyword: "gh",
+  search_url: "https://github.com/search?q={searchTerms}",
+});
+```
+
+```typescript Package Managers
+await glide.search_engines.add({
+  name: "npm",
+  keyword: "npm",
+  search_url: "https://www.npmjs.com/search?q={searchTerms}",
+});
+
+await glide.search_engines.add({
+  name: "crates.io",
+  keyword: "crate",
+  search_url: "https://crates.io/search?q={searchTerms}",
+});
+
+await glide.search_engines.add({
+  name: "PyPI",
+  keyword: "pypi",
+  search_url: "https://pypi.org/search/?q={searchTerms}",
+});
+```
+
+```typescript Reference Sites
+await glide.search_engines.add({
+  name: "Wikipedia",
+  keyword: "wiki",
+  search_url: "https://en.wikipedia.org/wiki/Special:Search?search={searchTerms}",
+  suggest_url: "https://en.wikipedia.org/w/api.php?action=opensearch&search={searchTerms}",
+});
+
+await glide.search_engines.add({
+  name: "WolframAlpha",
+  keyword: "wa",
+  search_url: "https://www.wolframalpha.com/input?i={searchTerms}",
+});
+```
+</CodeGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Search engine not appearing">
+    Make sure:
+    - The code is inside a `ConfigLoaded` autocmd
+    - You've reloaded the config with `:config_reload`
+    - The `name` is unique
+    - The `search_url` contains `{searchTerms}`
+  </Accordion>
+
+  <Accordion title="Keyword not working">
+    - Check that another search engine isn't using the same keyword
+    - Keywords are case-sensitive
+    - Try using `@` prefix to avoid conflicts: `@gh` instead of `gh`
+  </Accordion>
+
+  <Accordion title="Suggestions not showing">
+    - Ensure `suggest_url` contains `{searchTerms}`
+    - Check browser console for CORS errors
+    - Not all search APIs support CORS from browser context
+  </Accordion>
+</AccordionGroup>
+
+<Info>
+  The search engine API is defined in `glide.d.ts:778-804`. Test examples can be found in `test/search/browser_search_engines.ts:33-312`.
+</Info>
+
+## Reference
+
+- [WebExtension Search Provider API](https://developer.mozilla.org/docs/Mozilla/Add-ons/WebExtensions/manifest.json/chrome_settings_overrides#search_provider)
+- Source: `browser-api.mts` (search engine implementation)
+- Tests: `test/search/browser_search_engines.ts`

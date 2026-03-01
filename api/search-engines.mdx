@@ -1,0 +1,252 @@
+---
+title: glide.search_engines
+description: Add and configure custom search engines
+---
+
+The `glide.search_engines` API allows you to add custom search engines to Glide's address bar and search functionality.
+
+## Methods
+
+### glide.search_engines.add()
+
+Add or update a custom search engine.
+
+```typescript
+glide.search_engines.add(props: SearchEngineProps): Promise<void>
+```
+
+The format matches the `chrome_settings_overrides.search_provider` object from WebExtension manifests ([MDN reference](https://developer.mozilla.org/docs/Mozilla/Add-ons/WebExtensions/manifest.json/chrome_settings_overrides#search_provider)).
+
+#### Parameters
+
+<ParamField path="props" type="SearchEngineProps" required>
+  Configuration object for the search engine
+  
+  <Expandable title="properties">
+    <ParamField path="name" type="string" required>
+      Display name of the search engine. If a search engine with this name already exists, it will be updated.
+    </ParamField>
+    
+    <ParamField path="search_url" type="string" required>
+      URL template for searches. Must include `{searchTerms}` placeholder.
+      
+      Example: `"https://www.discogs.com/search/?q={searchTerms}"`
+    </ParamField>
+    
+    <ParamField path="keyword" type="string | string[]">
+      Keyword(s) to trigger this search engine. Can be a single keyword or array of keywords.
+      
+      Example: `"@disc"` or `["@disc", "@discogs"]`
+    </ParamField>
+    
+    <ParamField path="suggest_url" type="string">
+      URL template for search suggestions. Must include `{searchTerms}` placeholder.
+      
+      Example: `"https://example.com/suggest?q={searchTerms}"`
+    </ParamField>
+    
+    <ParamField path="favicon_url" type="string">
+      URL to the search engine's favicon icon
+      
+      Example: `"https://www.discogs.com/favicon.ico"`
+    </ParamField>
+    
+    <ParamField path="search_url_get_params" type="string">
+      Additional GET parameters to append to `search_url`. Automatically appended with `?` or `&`.
+      
+      Example: `"format=json&lang=en"`
+    </ParamField>
+    
+    <ParamField path="search_url_post_params" type="string">
+      POST parameters to send with search requests. If specified, the search will use POST method instead of GET.
+      
+      Example: `"q={searchTerms}&format=json"`
+    </ParamField>
+    
+    <ParamField path="suggest_url_get_params" type="string">
+      Additional GET parameters to append to `suggest_url`
+      
+      Example: `"type=json"`
+    </ParamField>
+    
+    <ParamField path="encoding" type="string">
+      Character encoding for search terms
+      
+      Default: `"UTF-8"`
+    </ParamField>
+    
+    <ParamField path="is_default" type="boolean">
+      Whether to set this as the default search engine
+      
+      Default: `false`
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+#### Examples
+
+**Basic search engine**
+
+Add a simple search engine for Discogs:
+
+```typescript
+await glide.search_engines.add({
+  name: "Discogs",
+  keyword: "@disc",
+  search_url: "https://www.discogs.com/search/?q={searchTerms}",
+  favicon_url: "https://www.discogs.com/favicon.ico",
+});
+```
+
+Usage: Type `@disc jazz records` in the address bar to search Discogs.
+
+**With search suggestions**
+
+Add a search engine with autocomplete suggestions:
+
+```typescript
+await glide.search_engines.add({
+  name: "Wikipedia",
+  keyword: "@wiki",
+  search_url: "https://en.wikipedia.org/wiki/Special:Search",
+  search_url_get_params: "search={searchTerms}",
+  suggest_url: "https://en.wikipedia.org/w/api.php",
+  suggest_url_get_params: "action=opensearch&search={searchTerms}",
+});
+```
+
+**Multiple keywords**
+
+Add a search engine with multiple trigger keywords:
+
+```typescript
+await glide.search_engines.add({
+  name: "GitHub",
+  keyword: ["@gh", "@github", "@git"],
+  search_url: "https://github.com/search?q={searchTerms}",
+  favicon_url: "https://github.com/favicon.ico",
+});
+```
+
+Now you can use `@gh`, `@github`, or `@git` to search GitHub.
+
+**Using POST method**
+
+Create a search engine that uses POST instead of GET:
+
+```typescript
+await glide.search_engines.add({
+  name: "API Search",
+  keyword: "@api",
+  search_url: "https://api.example.com/search",
+  search_url_post_params: "q={searchTerms}&format=json",
+});
+```
+
+**Set as default**
+
+Make a search engine the default:
+
+```typescript
+await glide.search_engines.add({
+  name: "DuckDuckGo",
+  search_url: "https://duckduckgo.com/?q={searchTerms}",
+  is_default: true,
+});
+```
+
+## Complete Example
+
+Define multiple search engines in your config:
+
+```typescript
+glide.autocmds.create("ConfigLoaded", async () => {
+  // Development tools
+  await glide.search_engines.add({
+    name: "GitHub",
+    keyword: ["@gh", "@github"],
+    search_url: "https://github.com/search?q={searchTerms}",
+    favicon_url: "https://github.com/favicon.ico",
+  });
+  
+  await glide.search_engines.add({
+    name: "MDN",
+    keyword: "@mdn",
+    search_url: "https://developer.mozilla.org/en-US/search",
+    search_url_get_params: "q={searchTerms}",
+  });
+  
+  // Shopping
+  await glide.search_engines.add({
+    name: "Amazon",
+    keyword: "@amz",
+    search_url: "https://www.amazon.com/s",
+    search_url_get_params: "k={searchTerms}",
+  });
+  
+  // Media
+  await glide.search_engines.add({
+    name: "YouTube",
+    keyword: "@yt",
+    search_url: "https://www.youtube.com/results",
+    search_url_get_params: "search_query={searchTerms}",
+    suggest_url: "https://suggestqueries.google.com/complete/search",
+    suggest_url_get_params: "client=firefox&ds=yt&q={searchTerms}",
+  });
+  
+  // Set DuckDuckGo as default
+  await glide.search_engines.add({
+    name: "DuckDuckGo",
+    search_url: "https://duckduckgo.com/?q={searchTerms}",
+    is_default: true,
+  });
+});
+```
+
+## Updating Engines
+
+Calling `glide.search_engines.add()` with the same `name` as an existing engine will update that engine:
+
+```typescript
+// Initial configuration
+await glide.search_engines.add({
+  name: "My Search",
+  keyword: "@old",
+  search_url: "https://old.example.com/search?q={searchTerms}",
+});
+
+// Later, update the configuration
+await glide.search_engines.add({
+  name: "My Search", // Same name = updates existing
+  keyword: "@new",
+  search_url: "https://new.example.com/search?q={searchTerms}",
+});
+// The search engine now uses the new keyword and URL
+```
+
+## GET vs POST Parameters
+
+You can specify whether to send search parameters via GET or POST:
+
+**GET method** (default - appended to URL):
+```typescript
+search_url: "https://example.com/search",
+search_url_get_params: "q={searchTerms}&format=json"
+// Results in: https://example.com/search?q=test&format=json
+```
+
+**POST method** (sent in request body):
+```typescript
+search_url: "https://example.com/search",
+search_url_post_params: "q={searchTerms}&format=json"
+// Sends POST request with body: q=test&format=json
+```
+
+## Notes
+
+- Search engines are persistent and remain configured even after config reloads.
+- To remove a search engine, use `about:preferences#search` in the browser.
+- The `{searchTerms}` placeholder is required in the `search_url`.
+- Multiple keywords allow different aliases for the same search engine.
+- If both GET and POST params are specified, POST takes precedence.
+- Search suggestions require the `suggest_url` parameter to be set.

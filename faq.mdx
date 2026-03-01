@@ -1,0 +1,188 @@
+---
+title: Frequently Asked Questions
+description: Common questions about Glide Browser
+---
+
+Find answers to the most commonly asked questions about Glide Browser.
+
+## General Questions
+
+<AccordionGroup>
+  <Accordion title="Who is Glide for?">
+    Glide is for you if:
+
+    - You like keyboard-focused applications
+    - You enjoy tinkering with software and deep customization
+    - You're happy to configure software through TypeScript code
+    - You like Firefox
+
+    Glide empowers power users who want complete control over their browsing experience through code-based configuration.
+  </Accordion>
+
+  <Accordion title="Who is Glide NOT for?">
+    Glide is probably not for you if:
+
+    - You want everything to be configurable through a GUI
+    - You value stability over all else (Glide is very early in its life)
+    - You would not feel comfortable running a browser maintained by a single person
+    - You do not like Firefox
+
+    If you're looking for a stable, GUI-based browser with a large organization behind it, consider sticking with mainstream browsers.
+  </Accordion>
+
+  <Accordion title="Why Firefox?">
+    At the time of writing, there are no viable alternatives that are not just Chromium.
+
+    Building on Chromium would be an uphill battle fighting against changes that Google makes to purely benefit itself, like the Manifest V3 changes that harm ad blockers.
+
+    No matter what you think of Mozilla's leadership, Firefox has stayed the most true to FOSS principles and Mozilla is held to much higher standards than their competitors.
+
+    **Note**: Ladybird is very promising and we hope their project is a success!
+  </Accordion>
+
+  <Accordion title="What parts of Firefox have been changed?">
+    Glide is built as a Firefox fork with custom modifications. Key changes include:
+
+    - How Firefox has been patched
+    - Which Firefox APIs are exposed
+    - Custom modifications to the browser engine
+    - Build system integration
+  </Accordion>
+</AccordionGroup>
+
+## Features & Capabilities
+
+<AccordionGroup>
+  <Accordion title="Why not use an extension instead?">
+    Existing extensions do cover a lot of Glide's features - for example, [Tridactyl](https://github.com/tridactyl/tridactyl) is a major source of inspiration for this browser.
+
+    However, any extension that wants to offer the same level of flexibility that Glide does will always be fighting an uphill [battle](https://github.com/tridactyl/tridactyl/issues/1800):
+
+    - Extensions don't have access to all the APIs needed
+    - Firefox restricts which documents extensions can operate on (e.g., extensions cannot run on addons.mozilla.org without hacky workarounds)
+    - While these restrictions are reasonable for security, they make it impossible to deliver a consistent, deeply integrated experience
+
+    **Building a Firefox fork means we control the full stack** and remove extension constraints while retaining Firefox's security model.
+
+    **Example**: Glide can render custom caret styles (block █ in normal mode, standard | in insert mode) - this is infeasible to implement in a web extension.
+  </Accordion>
+
+  <Accordion title="Why can't I play DRM content?">
+    DRM is a walled garden and [blocked for open source browsers](https://blog.samuelmaddock.com/posts/google-widevine-blocked-my-browser/), at least for browsers not run by large organizations.
+
+    Additionally, a Widevine license would be prohibitively expensive, even if we were accepted.
+
+    **This is also a matter of principle**: You should reconsider if it's worth using services that require DRM and proprietary software. See [Defective by Design](https://www.defectivebydesign.org/) for more information.
+  </Accordion>
+
+  <Accordion title="Why does the Glide API use snake_case?">
+    Because snake_case is better.
+
+    It's more readable, easier to scan, and doesn't have awkward initialisms like `tabID` vs `tabId`.
+
+    The Glide API consistently uses snake_case for all function names, parameters, and properties to provide a clean, uniform interface.
+  </Accordion>
+</AccordionGroup>
+
+## Configuration & Usage
+
+<AccordionGroup>
+  <Accordion title="How do I configure X?">
+    Glide provides several resources for configuration:
+
+    - **[Guides](/guides/navigation)**: Step-by-step guides for common tasks
+    - **[API Reference](/api/overview)**: Complete documentation of all Glide APIs available in the config
+    - **[Extensions API](/api/browser-api)**: Documentation for available web extension APIs
+
+    All configuration is done through TypeScript code in your `glide.ts` config file, giving you the full power of a programming language to customize your browser.
+  </Accordion>
+
+  <Accordion title="A Glide keymapping conflicts with a website keybinding. What do I do?">
+    There are several solutions:
+
+    ### Quick Workaround
+    Since there are almost zero default keymappings in `insert` mode, you can press `i` + the key + `<Esc>`.
+
+    ### Auto-enter Insert Mode for Specific Sites
+    ```typescript
+    glide.autocmds.create("UrlEnter", {
+      hostname: "example.com",
+    }, async () => {
+      await glide.excmds.execute("mode_change insert");
+    });
+    ```
+
+    ### Delete Specific Keymappings for Certain Sites
+    ```typescript
+    glide.autocmds.create("UrlEnter", {
+      hostname: "example.com",
+    }, () => {
+      glide.buf.keymaps.del("normal", "x");
+      // Add more keymappings to delete as needed
+    });
+    ```
+
+    This gives you fine-grained control over which keymappings are active on which sites.
+  </Accordion>
+
+  <Accordion title="How do I view logs from the config?">
+    The easiest way to see logs is to execute `:repl`, which spawns a [Browser Toolbox](https://firefox-source-docs.mozilla.org/devtools-user/browser_toolbox/index.html) window with just the console.
+
+    **Note**: This will include all logs from the main browser process, so if you have many tabs open it will be noisy.
+
+    ### Filter Logs
+    To filter logs down to just the config:
+
+    1. Click on **Filter output** (or press `<C-f>` on Linux / `<M-f>` on macOS)
+    2. Enter `glide.ts` or `.ts` as the filter
+
+    This filters to TypeScript files, which currently only includes your config in the Firefox build.
+  </Accordion>
+</AccordionGroup>
+
+## Getting Help
+
+<AccordionGroup>
+  <Accordion title="Where can I get help or report issues?">
+    Several channels are available:
+
+    - **[Zulip Chat](https://glide.zulipchat.com)**: Real-time discussion and community support
+    - **[GitHub Discussions](https://github.com/glide-browser/glide/discussions)**: Ask questions and share ideas
+    - **[GitHub Issues](https://github.com/glide-browser/glide/issues)**: Report bugs and feature requests
+    - **[Issue Triage](https://github.com/glide-browser/glide/discussions/new?category=issue-triage)**: Report specific issues for investigation
+
+    The Glide community is welcoming and helpful - don't hesitate to reach out!
+  </Accordion>
+
+  <Accordion title="How can I contribute to Glide?">
+    Glide welcomes contributions! Check out the [Contributing Guide](/contributing) to get started.
+
+    Ways to contribute:
+    - **Code**: Fix bugs, add features, improve performance
+    - **Documentation**: Improve docs, add examples, fix typos
+    - **Testing**: Report bugs, test new features, write test cases
+    - **Community**: Help others in chat, answer questions, share your config
+
+    See the [Contributing Guide](/contributing) for detailed instructions on building Glide, running tests, and submitting contributions.
+  </Accordion>
+
+  <Accordion title="What's the release schedule?">
+    Glide follows Firefox's release cycle and maintains compatibility with Firefox Beta versions.
+
+    - Regular updates bump the underlying Firefox version
+    - New features are released as they're ready
+    - Breaking changes are clearly documented in the [Changelog](/changelog)
+    - All releases are alpha (denoted by the `a` suffix) as Glide is in early development
+
+    Check the [Changelog](/changelog) regularly to stay up to date with the latest changes.
+  </Accordion>
+</AccordionGroup>
+
+## Still Have Questions?
+
+If your question isn't answered here:
+
+- Check the [Guides](/guides/navigation) for configuration examples
+- Browse the [API Reference](/api/overview) for detailed API documentation
+- Join the [Zulip chat](https://glide.zulipchat.com) to ask the community
+- Search [GitHub Discussions](https://github.com/glide-browser/glide/discussions) for similar questions

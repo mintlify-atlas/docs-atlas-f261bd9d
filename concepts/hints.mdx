@@ -1,0 +1,493 @@
+---
+title: Hints System
+description: Navigate web pages using keyboard-driven hint labels
+---
+
+Glide's hints system allows you to interact with clickable elements on a page using the keyboard. When activated, hints display labels over interactive elements that you can type to select them.
+
+## Basic Usage
+
+The simplest way to use hints is with the default keybindings:
+
+<Steps>
+  <Step title="Activate hints">
+    Press `f` in normal mode to show hints for all clickable elements on the page.
+  </Step>
+  
+  <Step title="Type the hint label">
+    Each element gets a unique label (like `hj`, `as`, `df`). Type the label to select that element.
+  </Step>
+  
+  <Step title="Element is clicked">
+    When you complete a hint label, the element is clicked and you return to normal mode.
+  </Step>
+</Steps>
+
+### Default Hint Keybindings
+
+```typescript
+// Click element in current tab
+glide.keymaps.set("normal", "f", "hint");
+
+// Click element in new tab
+glide.keymaps.set("normal", "F", "hint --action=newtab-click");
+
+// Show hints for browser UI elements
+glide.keymaps.set("normal", "<leader>f", "hint --location=browser-ui");
+
+// Cancel hints
+glide.keymaps.set("hint", "<Esc>", "hints_remove");
+
+// Focus the largest input field
+glide.keymaps.set("normal", "gI", () => 
+  glide.hints.show({ 
+    auto_activate: true, 
+    editable: true, 
+    pick: hinting.pickers.biggest_area 
+  })
+);
+
+// Yank (copy) a link URL
+glide.keymaps.set("normal", "yf", () =>
+  glide.hints.show({
+    selector: "[href]",
+    async action({ content }) {
+      let href = await content.execute((target) => 
+        (target as HTMLAnchorElement).href
+      );
+      if (href.startsWith("mailto:")) {
+        href = href.slice(7);
+      } else if (href.startsWith("tel:") || href.startsWith("sms:")) {
+        href = href.slice(4);
+      }
+      await navigator.clipboard.writeText(href);
+    },
+  })
+);
+```
+
+## Programmatic API
+
+Use `glide.hints.show()` to trigger hints with custom options:
+
+### Basic Example
+
+```typescript
+// Show hints for all clickable elements
+glide.hints.show();
+
+// Show hints only for links
+glide.hints.show({ selector: "a[href]" });
+
+// Show hints for input fields
+glide.hints.show({ editable: true });
+```
+
+### Selector Filtering
+
+Use CSS selectors to target specific elements:
+
+```typescript
+// Only show hints for buttons
+glide.hints.show({ 
+  selector: "button" 
+});
+
+// Multiple selectors
+glide.hints.show({ 
+  selector: "button, input[type='submit'], .clickable" 
+});
+
+// Include additional elements beyond defaults
+glide.hints.show({ 
+  include: ".custom-button, [role='button']" 
+});
+```
+
+<Info>
+  **selector** replaces the default hintable elements, while **include** adds to them.
+</Info>
+
+## Hintable Elements
+
+By default, Glide shows hints for these element types:
+
+<Tabs>
+  <Tab title="HTML Tags">
+    The following HTML tags are automatically hintable:
+    
+    - `<a>` - Links
+    - `<input>` - Form inputs
+    - `<textarea>` - Text areas
+    - `<button>` - Buttons
+    - `<details>` / `<summary>` - Disclosure widgets
+    - `<option>` - Select options
+    - `<label>` - Form labels
+    
+    **Firefox XUL elements** (for browser UI):
+    - `<toolbarbutton>`
+    - `<richlistitem>`
+    - `<menulist>`
+    - `<checkbox>`
+    - `<radio>`
+    
+    Source: `src/glide/browser/base/content/hinting.mts:101-116`
+  </Tab>
+  
+  <Tab title="ARIA Roles">
+    Elements with these ARIA roles are hintable:
+    
+    - `role="link"`
+    - `role="button"`
+    - `role="option"`
+    - `role="menuitem"`
+    - `role="menuitemcheckbox"`
+    - `role="menuitemradio"`
+    - `role="tab"`
+    - `role="checkbox"`
+    - `role="radio"`
+    
+    Source: `src/glide/browser/base/content/hinting.mts:118-128`
+  </Tab>
+  
+  <Tab title="Editable Elements">
+    Any element that accepts text input:
+    
+    - `<input>` (text types)
+    - `<textarea>`
+    - Elements with `contenteditable="true"`
+    - Elements in design mode
+  </Tab>
+  
+  <Tab title="Click Listeners">
+    Optionally include elements with click event listeners:
+    
+    ```typescript
+    glide.hints.show({ 
+      include_click_listeners: true 
+    });
+    ```
+    
+    <Warning>
+      This is experimental and may show hints for many unexpected elements.
+    </Warning>
+  </Tab>
+</Tabs>
+
+## Custom Actions
+
+Define what happens when a hint is selected:
+
+```typescript
+// Custom action on hint selection
+glide.hints.show({
+  selector: "img",
+  async action({ hint, content }) {
+    // Get image src from content
+    const src = await content.execute((img) => 
+      (img as HTMLImageElement).src
+    );
+    
+    console.log("Image URL:", src);
+    console.log("Hint position:", hint.x, hint.y);
+  },
+});
+
+// Copy link text instead of clicking
+glide.hints.show({
+  selector: "a",
+  async action({ content }) {
+    const text = await content.execute((link) => 
+      link.textContent?.trim() || ""
+    );
+    await navigator.clipboard.writeText(text);
+  },
+});
+```
+
+### Action Context
+
+The action callback receives:
+
+- `hint` - Hint metadata (position, id, dimensions)
+- `content.execute()` - Run code in page context with access to the DOM element
+
+```typescript
+interface HintActionContext {
+  hint: {
+    id: number;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+  content: {
+    execute<T>(callback: (element: HTMLElement) => T): Promise<T>;
+  };
+}
+```
+
+## Hint Labels
+
+Customize how hint labels are generated:
+
+### Built-in Label Generators
+
+<Tabs>
+  <Tab title="Prefix-Free (Default)">
+    Generates labels where no label is a prefix of another, allowing instant selection:
+    
+    ```typescript
+    glide.o.hint_label_generator = glide.hints.label_generators.prefix_free;
+    ```
+    
+    Uses characters from `glide.o.hint_chars` (default: `"hjklasdfgyuiopqwertnmzxcvb"`).
+    
+    **Example labels**: `hj`, `hk`, `hl`, `as`, `ad`, `af`
+  </Tab>
+  
+  <Tab title="Numeric">
+    Simple numeric labels starting from 1:
+    
+    ```typescript
+    glide.o.hint_label_generator = glide.hints.label_generators.numeric;
+    ```
+    
+    **Example labels**: `1`, `2`, `3`, `4`, `5`
+  </Tab>
+</Tabs>
+
+### Custom Label Generator
+
+Create your own label generation logic:
+
+```typescript
+glide.o.hint_label_generator = ({ hints }) => {
+  // Return an array of labels, one per hint
+  return hints.map((hint, index) => {
+    return String.fromCharCode(65 + index); // A, B, C, ...
+  });
+};
+
+// Or use uppercase letters
+glide.o.hint_label_generator = ({ hints }) => {
+  const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  return hints.map((_, i) => letters[i] || String(i));
+};
+```
+
+### Per-Hint Custom Labels
+
+Generate labels based on hint properties:
+
+```typescript
+glide.hints.show({
+  selector: "a",
+  async label_generator({ hints, content }) {
+    // Access DOM elements to generate labels
+    const texts = await content.map((el) => 
+      el.textContent?.trim().slice(0, 2).toLowerCase() || ""
+    );
+    
+    return texts.map((text, i) => text || String(i));
+  },
+});
+```
+
+## Hint Appearance
+
+Customize hint styling:
+
+```typescript
+// Change hint font size
+glide.o.hint_size = "14px";
+
+// Change hint characters (affects prefix-free generator)
+glide.o.hint_chars = "asdfjkl;";
+```
+
+For advanced styling, use CSS:
+
+```typescript
+glide.styles.add(`
+  .glide-internal-hint-marker {
+    font-size: 16px !important;
+    font-weight: bold !important;
+    background: #ff6b35 !important;
+    color: white !important;
+  }
+  
+  .glide-matching-character {
+    color: #ffcc00 !important;
+  }
+`, { id: "custom-hints" });
+```
+
+## Hint Pickers
+
+Filter and select specific hints from the resolved set:
+
+### Biggest Area Picker
+
+Select only the largest element (useful for focusing main input):
+
+```typescript
+glide.hints.show({
+  editable: true,
+  pick: glide.hints.pickers.biggest_area,
+  auto_activate: true,
+});
+```
+
+Source: `src/glide/browser/base/content/hinting.mts:180-203`
+
+### Custom Picker
+
+Implement your own filtering logic:
+
+```typescript
+glide.hints.show({
+  async pick({ hints, content }) {
+    // Only show hints in the top half of the viewport
+    return hints.filter(hint => hint.y < window.innerHeight / 2);
+  },
+});
+
+// Or pick based on DOM properties
+glide.hints.show({
+  selector: "a",
+  async pick({ hints, content }) {
+    // Get href for each hint
+    const hrefs = await content.map((el) => 
+      (el as HTMLAnchorElement).href
+    );
+    
+    // Only keep external links
+    return hints.filter((hint, i) => 
+      !hrefs[i].startsWith(window.location.origin)
+    );
+  },
+});
+```
+
+## Auto-Activation
+
+Automatically click when only one hint is found:
+
+```typescript
+// Auto-activate if there's only one hint
+glide.hints.show({ 
+  editable: true,
+  auto_activate: true 
+});
+
+// Always auto-activate (even with multiple hints)
+glide.hints.show({ 
+  selector: "#submit-button",
+  auto_activate: "always" 
+});
+```
+
+## Browser UI Hints
+
+Show hints for browser interface elements:
+
+```typescript
+// Show hints for browser UI (tabs, buttons, etc.)
+glide.keymaps.set("normal", "<leader>f", "hint --location=browser-ui");
+
+// Programmatic
+glide.hints.show({ location: "browser-ui" });
+```
+
+<Tip>
+  Use browser UI hints to interact with tabs, address bar, bookmarks, and other Firefox interface elements.
+</Tip>
+
+## Hint Mode
+
+When hints are shown, Glide enters `hint` mode:
+
+```typescript
+// Registered in plugins/hints.mts
+glide.modes.register("hint", { caret: "block" });
+
+// Auto-cleanup when leaving hint mode
+glide.autocmds.create("ModeChanged", "hint:*", async () => {
+  if (!glide.prefs.get("ui.popup.disable_autohide")) {
+    await glide.excmds.execute("hints_remove");
+  }
+});
+```
+
+## Advanced Examples
+
+### Copy All Links on Page
+
+```typescript
+glide.keymaps.set("normal", "<leader>yl", async () => {
+  const links = await glide.content.execute(() => {
+    return Array.from(document.querySelectorAll("a[href]"))
+      .map(a => (a as HTMLAnchorElement).href);
+  });
+  
+  await navigator.clipboard.writeText(links.join("\n"));
+  console.log(`Copied ${links.length} links`);
+});
+```
+
+### Hint YouTube Timestamps
+
+```typescript
+glide.autocmds.create("UrlEnter", /youtube\.com/, () => {
+  glide.keymaps.set("normal", "<leader>t", () => {
+    glide.hints.show({
+      selector: "a.yt-simple-endpoint[href*='&t=']",
+      async action({ content }) {
+        await content.execute((el) => {
+          (el as HTMLAnchorElement).click();
+        });
+      },
+    });
+  });
+});
+```
+
+### Focus Largest Textarea
+
+```typescript
+glide.keymaps.set("normal", "gI", () =>
+  glide.hints.show({
+    editable: true,
+    auto_activate: true,
+    pick: async ({ hints, content }) => {
+      const areas = await content.map((el) => 
+        el.offsetWidth * el.offsetHeight
+      );
+      
+      let maxArea = 0;
+      let maxIndex = 0;
+      
+      areas.forEach((area, i) => {
+        if (area > maxArea) {
+          maxArea = area;
+          maxIndex = i;
+        }
+      });
+      
+      return [hints[maxIndex]];
+    },
+  })
+);
+```
+
+## Source Code References
+
+<Accordion title="Key implementation files">
+  - **Hints API**: `src/glide/browser/base/content/glide.d.ts:620-680`
+  - **Hint resolution**: `src/glide/browser/base/content/hinting.mts:24-204`
+  - **Browser UI hints**: `src/glide/browser/base/content/browser-hints.mts:12-256`
+  - **Hint mode registration**: `src/glide/browser/base/content/plugins/hints.mts:19`
+  - **Default hint keymaps**: `src/glide/browser/base/content/plugins/keymaps.mts:40-147`
+  - **Hintable element definitions**: `src/glide/browser/base/content/hinting.mts:101-128`
+</Accordion>

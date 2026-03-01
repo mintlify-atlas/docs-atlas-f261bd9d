@@ -1,0 +1,427 @@
+---
+title: "glide.findbar"
+description: "API for Firefox's native find-in-page functionality"
+---
+
+## Overview
+
+The findbar API provides programmatic control over Firefox's native find-in-page functionality. This allows you to search for text in the current page, navigate between matches, and configure search options like case sensitivity and highlighting.
+
+## Methods
+
+### open()
+
+Open the findbar with optional search configuration.
+
+```typescript
+glide.findbar.open(opts?: FindbarOpenOpts): Promise<void>
+```
+
+<ParamField path="opts" type="object" optional>
+  Options for configuring the findbar behavior and search parameters
+  
+  <Expandable title="properties">
+    <ParamField path="query" type="string" optional>
+      Search for the given string. When not specified, the findbar opens with the most recently used search query.
+      
+      To open the findbar with an empty query, pass an empty string `""`.
+      
+      ```typescript
+      // Search for "hello"
+      glide.findbar.open({ query: "hello" });
+      
+      // Open with empty query
+      glide.findbar.open({ query: "" });
+      ```
+    </ParamField>
+    
+    <ParamField path="mode" type="'normal' | 'typeahead' | 'links'" default="'normal'">
+      The findbar can be opened in 3 different modes:
+      
+      - `"normal"` - The classic find-in-page experience
+      - `"typeahead"` - The findbar exits as soon as you press Enter
+      - `"links"` - The findbar only shows results for links; pressing Enter clicks the link
+      
+      ```typescript
+      // Search links only
+      glide.findbar.open({ 
+        mode: "links",
+        query: "documentation" 
+      });
+      ```
+    </ParamField>
+    
+    <ParamField path="highlight_all" type="boolean" optional>
+      Highlight all terms that match the search query.
+      
+      When not specified, this retains whatever value was last set (either through the API or by manually toggling the highlight button in the findbar).
+      
+      ```typescript
+      glide.findbar.open({ 
+        query: "error",
+        highlight_all: true 
+      });
+      ```
+    </ParamField>
+    
+    <ParamField path="match_casing" type="boolean" optional>
+      Make searches case-sensitive.
+      
+      - `false` - "search phrase" matches "Search Phrase"
+      - `true` - Only exact case matches are found
+      
+      When not specified, retains the previously set value.
+      
+      ```typescript
+      glide.findbar.open({ 
+        query: "Error",
+        match_casing: true 
+      });
+      ```
+    </ParamField>
+    
+    <ParamField path="match_diacritics" type="boolean" optional>
+      Distinguish between accented letters and their base letters.
+      
+      - `true` - "resume" will not match "résumé"
+      - `false` - "resume" will match "résumé"
+      
+      When not specified, retains the previously set value.
+      
+      ```typescript
+      glide.findbar.open({ 
+        query: "cafe",
+        match_diacritics: false // Will match "café"
+      });
+      ```
+    </ParamField>
+    
+    <ParamField path="whole_words" type="boolean" optional>
+      Only highlight entire words that match the search.
+      
+      - `true` - "cat" will not match "category"
+      - `false` - "cat" will match "category"
+      
+      When not specified, retains the previously set value.
+      
+      ```typescript
+      glide.findbar.open({ 
+        query: "test",
+        whole_words: true // Won't match "testing"
+      });
+      ```
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+#### Examples
+
+```typescript
+// Basic search
+await glide.findbar.open({ query: "hello" });
+
+// Case-sensitive search with highlighting
+await glide.findbar.open({
+  query: "Error",
+  match_casing: true,
+  highlight_all: true
+});
+
+// Search for whole words only
+await glide.findbar.open({
+  query: "test",
+  whole_words: true
+});
+
+// Link-only search
+await glide.findbar.open({
+  mode: "links",
+  query: "download"
+});
+
+// Open empty findbar for user input
+await glide.findbar.open({ query: "" });
+```
+
+### next_match()
+
+Select the next match for the findbar query.
+
+```typescript
+glide.findbar.next_match(): Promise<void>
+```
+
+If the findbar is not currently open, it is opened with the last searched query.
+
+#### Examples
+
+```typescript
+// Navigate to next match
+await glide.findbar.next_match();
+
+// Bind to keyboard shortcut
+glide.keymaps.set('normal', 'n', async () => {
+  await glide.findbar.next_match();
+});
+
+// Search and navigate
+await glide.findbar.open({ query: "error" });
+await glide.findbar.next_match();
+await glide.findbar.next_match();
+```
+
+### previous_match()
+
+Select the previous match for the findbar query.
+
+```typescript
+glide.findbar.previous_match(): Promise<void>
+```
+
+If the findbar is not currently open, it is opened with the last searched query.
+
+#### Examples
+
+```typescript
+// Navigate to previous match
+await glide.findbar.previous_match();
+
+// Bind to keyboard shortcut
+glide.keymaps.set('normal', 'N', async () => {
+  await glide.findbar.previous_match();
+});
+
+// Navigate back and forth
+await glide.findbar.next_match();
+await glide.findbar.previous_match();
+```
+
+### close()
+
+Close the findbar.
+
+```typescript
+glide.findbar.close(): Promise<void>
+```
+
+Does nothing if the findbar is already closed.
+
+#### Examples
+
+```typescript
+// Close the findbar
+await glide.findbar.close();
+
+// Search then close
+await glide.findbar.open({ query: "test" });
+await glide.findbar.next_match();
+await glide.findbar.close();
+
+// Bind to escape key
+glide.keymaps.set('normal', '<Esc>', async () => {
+  if (glide.findbar.is_open()) {
+    await glide.findbar.close();
+  }
+});
+```
+
+### is_open()
+
+Check if the findbar UI is currently visible.
+
+```typescript
+glide.findbar.is_open(): boolean
+```
+
+<ResponseField name="return" type="boolean">
+  Returns `true` if the findbar is visible, `false` otherwise.
+</ResponseField>
+
+#### Examples
+
+```typescript
+if (glide.findbar.is_open()) {
+  console.log('Findbar is visible');
+}
+
+// Conditional close
+if (glide.findbar.is_open()) {
+  await glide.findbar.close();
+}
+```
+
+### is_focused()
+
+Check if the findbar UI is currently visible and focused.
+
+```typescript
+glide.findbar.is_focused(): boolean
+```
+
+<ResponseField name="return" type="boolean">
+  Returns `true` if the findbar is visible and the input field has focus, `false` otherwise.
+</ResponseField>
+
+#### Examples
+
+```typescript
+if (glide.findbar.is_focused()) {
+  console.log('Findbar input is focused');
+}
+
+// Check state before action
+if (glide.findbar.is_open() && !glide.findbar.is_focused()) {
+  // Findbar is open but input not focused
+  await glide.findbar.next_match();
+}
+```
+
+## Types
+
+### FindbarOpenOpts
+
+```typescript
+interface FindbarOpenOpts {
+  query?: string;
+  mode?: "normal" | "typeahead" | "links";
+  highlight_all?: boolean;
+  match_casing?: boolean;
+  match_diacritics?: boolean;
+  whole_words?: boolean;
+}
+```
+
+## Common Patterns
+
+### Search Selected Text
+
+```typescript
+glide.keymaps.set('visual', '*', async ({ tab_id }) => {
+  const selection = await glide.content.execute(
+    () => window.getSelection()?.toString() || '',
+    { tab_id }
+  );
+  
+  if (selection) {
+    await glide.findbar.open({ 
+      query: selection,
+      highlight_all: true 
+    });
+  }
+});
+```
+
+### Quick Find Without Opening Findbar
+
+```typescript
+glide.keymaps.set('normal', '<leader>/', async () => {
+  const query = await promptUser("Search for:");
+  
+  await glide.findbar.open({ 
+    query,
+    highlight_all: true 
+  });
+  
+  // Auto-close after highlighting
+  await glide.findbar.close();
+});
+```
+
+### Navigate Matches with Counter
+
+```typescript
+let matchIndex = 0;
+
+glide.keymaps.set('normal', 'n', async () => {
+  await glide.findbar.next_match();
+  matchIndex++;
+  console.log(`Match ${matchIndex}`);
+});
+
+glide.keymaps.set('normal', 'N', async () => {
+  await glide.findbar.previous_match();
+  matchIndex--;
+  console.log(`Match ${matchIndex}`);
+});
+```
+
+### Vim-style Search
+
+```typescript
+// Forward search
+glide.keymaps.set('normal', '/', async () => {
+  await glide.findbar.open({ 
+    query: "",
+    mode: "normal"
+  });
+});
+
+// Next match
+glide.keymaps.set('normal', 'n', async () => {
+  await glide.findbar.next_match();
+});
+
+// Previous match
+glide.keymaps.set('normal', 'N', async () => {
+  await glide.findbar.previous_match();
+});
+
+// Clear search highlighting
+glide.keymaps.set('normal', '<leader>n', async () => {
+  await glide.findbar.close();
+});
+```
+
+### Search and Extract Results
+
+```typescript
+glide.excmds.create(
+  { name: "search_and_extract", description: "Search and extract all matches" },
+  async () => {
+    const query = await promptUser("Search query:");
+    
+    // Open findbar to highlight all matches
+    await glide.findbar.open({ 
+      query,
+      highlight_all: true 
+    });
+    
+    // Extract all matches from the page
+    const matches = await glide.content.execute((searchQuery) => {
+      const results: string[] = [];
+      const walker = document.createTreeWalker(
+        document.body,
+        NodeFilter.SHOW_TEXT
+      );
+      
+      let node;
+      while (node = walker.nextNode()) {
+        const text = node.textContent || '';
+        if (text.includes(searchQuery)) {
+          results.push(text.trim());
+        }
+      }
+      
+      return results;
+    }, { 
+      tab_id: await glide.tabs.active(),
+      args: [query]
+    });
+    
+    console.log('Found matches:', matches);
+    await glide.findbar.close();
+  }
+);
+```
+
+## Notes
+
+- The findbar retains its configuration (case sensitivity, whole words, etc.) across sessions
+- When `query` is provided with `mode`, search results are displayed immediately
+- The findbar input is not automatically focused when using `next_match()` or `previous_match()` to avoid mode changes
+- Search wraps around when reaching the end of the page
+
+## See Also
+
+- [glide.keymaps](/api/keymaps) - Bind keyboard shortcuts to findbar functions
+- [glide.content](/api/content) - Execute code in page context for custom search implementations

@@ -1,0 +1,333 @@
+---
+title: Split Views
+description: Display multiple tabs side-by-side with experimental split view support
+icon: columns
+---
+
+<Warning>
+  Split views are **experimental** in Firefox. There will be bugs and the API may change. This feature requires Firefox's native split view support which is still under development.
+</Warning>
+
+Glide Browser provides access to Firefox's experimental split view feature, allowing you to display multiple tabs side-by-side in a single window.
+
+## Overview
+
+Split views let you:
+- View two or more tabs simultaneously
+- Compare content across tabs
+- Work with multiple pages at once
+- Create custom multi-pane layouts
+
+<Note>
+  Before using split views, users must acknowledge the experimental nature by setting `browser.tabs.splitview.hasUsed` preference. Glide handles this automatically on first use.
+</Note>
+
+## API Access
+
+Split views are available through the unstable API:
+
+```typescript
+glide.unstable.split_views
+```
+
+## Creating Split Views
+
+Create a split view with at least 2 tabs:
+
+```typescript
+// Get some tabs
+const tabs = await glide.tabs.query({});
+
+// Create split view with tab objects
+const splitView = glide.unstable.split_views.create([tabs[0], tabs[1]]);
+
+console.log(splitView.id);     // Unique split view ID
+console.log(splitView.tabs);   // Array of tabs in split view
+```
+
+### Using Tab IDs
+
+You can also pass tab IDs directly:
+
+```typescript
+const tabs = await glide.tabs.query({});
+const splitView = glide.unstable.split_views.create([
+  tabs[0].id!,
+  tabs[1].id!
+]);
+```
+
+### Custom Split View ID
+
+Specify a custom ID for the split view:
+
+```typescript
+const splitView = glide.unstable.split_views.create(
+  [tab1, tab2],
+  { id: 1234 }
+);
+
+console.log(splitView.id); // 1234
+```
+
+<Warning>
+  Custom IDs must be unique. Creating a split view with an ID that's already in use will throw an error:
+  ```
+  Error: Could not create a splitview; The 1234 ID is already in use
+  ```
+</Warning>
+
+## Retrieving Split Views
+
+Get a split view by various identifiers:
+
+```typescript
+// By split view ID
+const splitView = glide.unstable.split_views.get(splitViewId);
+
+// By tab ID
+const splitView = glide.unstable.split_views.get(tabId);
+
+// By tab object
+const splitView = glide.unstable.split_views.get(tab);
+
+if (splitView) {
+  console.log(`Split view ${splitView.id} has ${splitView.tabs.length} tabs`);
+}
+```
+
+## Checking Split View Status
+
+Check if a tab is in a split view:
+
+```typescript
+const tab = await glide.tabs.active();
+
+if (glide.unstable.split_views.has_split_view(tab)) {
+  console.log("Current tab is in a split view");
+} else {
+  console.log("Current tab is standalone");
+}
+
+// Also works with tab ID
+if (glide.unstable.split_views.has_split_view(tab.id!)) {
+  // Tab is in split view
+}
+```
+
+## Separating Tabs
+
+Revert a tab from a split view back to a normal tab:
+
+```typescript
+// Separate by tab object
+glide.unstable.split_views.separate(tab);
+
+// Separate by tab ID
+glide.unstable.split_views.separate(tabId);
+
+// Separate by split view ID (closes entire split view)
+glide.unstable.split_views.separate(splitViewId);
+```
+
+<Info>
+  When you separate a tab from a split view, all tabs in that split view are reverted to normal tabs.
+</Info>
+
+## Split View Object
+
+The split view object has the following structure:
+
+```typescript
+interface SplitView {
+  id: number;                    // Unique split view identifier
+  tabs: Browser.Tabs.Tab[];      // Array of tabs in the split view
+}
+```
+
+## Practical Examples
+
+### Toggle Split View
+
+```typescript
+glide.keymaps.set("normal", "<leader>s", async () => {
+  const tabs = await glide.tabs.query({});
+  
+  // Need at least 2 tabs
+  if (tabs.length < 2) {
+    console.log("Need at least 2 tabs for split view");
+    return;
+  }
+
+  const currentTab = tabs.find(t => t.active);
+  
+  // Check if already in split view
+  if (currentTab && glide.unstable.split_views.has_split_view(currentTab)) {
+    // Separate current tab
+    glide.unstable.split_views.separate(currentTab);
+  } else {
+    // Create split view with first two tabs
+    glide.unstable.split_views.create([tabs[0], tabs[1]]);
+  }
+});
+```
+
+### Split View with Specific Tabs
+
+```typescript
+glide.keymaps.set("normal", "<leader>2", async () => {
+  // Prompt user to select tabs (simplified example)
+  const tab1 = await glide.tabs.get_first({ index: 0 });
+  const tab2 = await glide.tabs.get_first({ index: 1 });
+  
+  if (tab1 && tab2) {
+    const splitView = glide.unstable.split_views.create([tab1, tab2]);
+    console.log(`Created split view ${splitView.id}`);
+  }
+});
+```
+
+### Open URLs in Split View
+
+```typescript
+async function openInSplitView(url1: string, url2: string) {
+  // Open two new tabs
+  const tab1 = await browser.tabs.create({ url: url1, active: false });
+  const tab2 = await browser.tabs.create({ url: url2, active: false });
+  
+  // Wait for tabs to be ready
+  await new Promise(resolve => setTimeout(resolve, 100));
+  
+  // Create split view
+  return glide.unstable.split_views.create([tab1.id!, tab2.id!]);
+}
+
+// Usage
+glide.keymaps.set("normal", "<leader>d", async () => {
+  await openInSplitView(
+    "https://developer.mozilla.org",
+    "https://glide-browser.app/docs"
+  );
+});
+```
+
+### Compare Tabs Side-by-Side
+
+```typescript
+glide.excmds.create(
+  { 
+    name: "split_compare",
+    description: "Compare current tab with another"
+  },
+  async () => {
+    const currentTab = await glide.tabs.active();
+    const allTabs = await glide.tabs.query({});
+    
+    // Find another tab (not current)
+    const otherTab = allTabs.find(t => t.id !== currentTab.id);
+    
+    if (otherTab) {
+      glide.unstable.split_views.create([currentTab, otherTab]);
+    } else {
+      console.log("Need at least one other tab to compare");
+    }
+  }
+);
+```
+
+## Limitations and Restrictions
+
+### Pinned Tabs
+
+<Warning>
+  You cannot create split views with pinned tabs. Attempting to do so will throw an error:
+  ```
+  Error: Could not create a splitview; Is one of the tabs pinned?
+  ```
+</Warning>
+
+Unpin tabs before adding them to a split view:
+
+```typescript
+const tab = await glide.tabs.active();
+
+if (tab.pinned) {
+  await browser.tabs.update(tab.id, { pinned: false });
+}
+
+// Now can create split view
+glide.unstable.split_views.create([tab, otherTab]);
+```
+
+### Minimum Tabs
+
+You must provide at least 2 tabs to create a split view.
+
+### Browser Support
+
+Split views require:
+- Firefox with experimental split view feature enabled
+- Glide Browser (which enables this automatically)
+
+## Known Issues
+
+<AccordionGroup>
+  <Accordion title="Visual glitches">
+    As an experimental Firefox feature, you may encounter:
+    - Rendering issues when resizing
+    - Tab bar display problems
+    - Incorrect focus handling
+  </Accordion>
+
+  <Accordion title="Tab state inconsistencies">
+    - Tabs may not always reflect split view state immediately
+    - Closing tabs in a split view may have unexpected behavior
+  </Accordion>
+
+  <Accordion title="Performance">
+    - Multiple rendered tabs consume more memory
+    - Complex pages may affect scrolling smoothness
+  </Accordion>
+</AccordionGroup>
+
+## Debugging
+
+Check split view state in the console:
+
+```typescript
+// List all tabs and their split view status
+const tabs = await glide.tabs.query({});
+for (const tab of tabs) {
+  const inSplit = glide.unstable.split_views.has_split_view(tab);
+  const splitView = glide.unstable.split_views.get(tab);
+  
+  console.log(`Tab ${tab.id}: ${inSplit ? 'in split view ' + splitView?.id : 'standalone'}`);
+}
+```
+
+## Future Improvements
+
+The split view API is under active development. Potential future enhancements:
+
+- More than 2 tabs per split view
+- Customizable split orientations (horizontal/vertical)
+- Split view layouts and configurations
+- Better integration with tab management
+
+<Info>
+  The split view API is defined in `glide.d.ts:897-929`. Test examples can be found in `test/split-views/browser_split_views.ts:13-146`.
+</Info>
+
+## Cleanup
+
+When testing split views, you may want to clean up the preference:
+
+```typescript
+glide.prefs.clear("browser.tabs.splitview.hasUsed");
+```
+
+## Related
+
+- [Tab Management](/api/tabs)
+- [Browser API](/api/browser-api)
+- [Unstable APIs](/api/unstable)

@@ -1,122 +1,146 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "Glide Browser",
+  "theme": "aspen",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#5B7FFF",
+    "light": "#8BA3FF",
+    "dark": "#3D5FCC"
   },
-  "favicon": "/favicon.svg",
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/glide-browser/glide"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/glide-browser/glide"
+    }
+  },
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "Documentation",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "Get Started",
             "pages": [
-              "index",
-              "quickstart",
-              "development"
+              "introduction",
+              "installation",
+              "quickstart"
             ]
           },
           {
-            "group": "Customization",
+            "group": "Core Concepts",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
+              "concepts/modes",
+              "concepts/keymaps",
+              "concepts/hints",
+              "concepts/configuration"
             ]
           },
           {
-            "group": "Writing content",
+            "group": "Guides",
             "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
+              "guides/navigation",
+              "guides/tabs",
+              "guides/customization",
+              "guides/autocmds",
+              "guides/extensions",
+              "guides/advanced-config"
             ]
           },
           {
-            "group": "AI tools",
+            "group": "Features",
             "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "features/modal-editing",
+              "features/keyboard-navigation",
+              "features/commandline",
+              "features/search-engines",
+              "features/split-views"
             ]
           }
         ]
       },
       {
-        "tab": "API reference",
+        "tab": "API Reference",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "Overview",
             "pages": [
-              "api-reference/introduction"
+              "api/overview",
+              "api/getting-started"
             ]
           },
           {
-            "group": "Endpoint examples",
+            "group": "Core API",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "api/context",
+              "api/options",
+              "api/keymaps",
+              "api/modes",
+              "api/autocmds"
+            ]
+          },
+          {
+            "group": "User Interface",
+            "pages": [
+              "api/hints",
+              "api/commandline",
+              "api/findbar",
+              "api/styles"
+            ]
+          },
+          {
+            "group": "Browser Control",
+            "pages": [
+              "api/tabs",
+              "api/content",
+              "api/keys",
+              "api/prefs"
+            ]
+          },
+          {
+            "group": "Extensions",
+            "pages": [
+              "api/addons",
+              "api/search-engines",
+              "api/browser-api"
+            ]
+          },
+          {
+            "group": "System Integration",
+            "pages": [
+              "api/process",
+              "api/filesystem",
+              "api/environment",
+              "api/path"
+            ]
+          },
+          {
+            "group": "Advanced",
+            "pages": [
+              "api/messengers",
+              "api/excmds",
+              "api/unstable"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Resources",
+        "groups": [
+          {
+            "group": "Community",
+            "pages": [
+              "contributing",
+              "changelog",
+              "faq"
             ]
           }
         ]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
-  "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
-    }
-  },
-  "contextual": {
-    "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
-  },
-  "footer": {
-    "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
-    }
+    ]
   }
 }

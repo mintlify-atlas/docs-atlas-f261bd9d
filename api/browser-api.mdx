@@ -1,0 +1,498 @@
+---
+title: browser.*
+description: Access the Web Extensions API from your config
+---
+
+Glide provides direct access to the [Web Extensions API](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/Browser_support_for_JavaScript_APIs) through the global `browser` object in your config file.
+
+This allows you to use the full power of Firefox's extension APIs without creating a separate extension.
+
+## Overview
+
+The `browser` API is available globally in your Glide config:
+
+```typescript
+// Access browser APIs directly
+glide.keymaps.set("normal", "<leader>t", async () => {
+  await browser.theme.update({
+    colors: { frame: "#50abd3" },
+  });
+});
+```
+
+## Key Differences from Standard API
+
+While the `browser` object in Glide is mostly compatible with the standard Web Extensions API, there are some important differences:
+
+### All Methods Return Promises
+
+All method calls return a `Promise<T>`, even if the standard API returns a value synchronously:
+
+```typescript
+// Standard Web Extensions API (in an extension)
+const manifest = browser.runtime.getManifest(); // Synchronous
+
+// Glide's browser API
+const manifest = await browser.runtime.getManifest(); // Always async
+```
+
+### Unsupported APIs
+
+Some APIs are not supported:
+
+- `browser.runtime.connect()` - Port-based messaging is not available
+- Any other Port-related APIs
+- `browser.runtime.getFrameId()` - Requires non-cloneable target argument
+- `browser.runtime.getBackgroundPage()` - Not accessible from main thread
+
+### Event Listeners
+
+Event listeners are **not supported** in the content frame. You can only register event listeners in the main config:
+
+```typescript
+// ✅ Works - in main config
+browser.tabs.onCreated.addListener((tab) => {
+  console.log("New tab created:", tab.url);
+});
+
+// ❌ Error - in content scripts
+glide.keymaps.set("normal", "<leader>x", glide.content.fn(() => {
+  browser.tabs.onCreated.addListener(() => {}); // Error!
+}));
+```
+
+### Availability Restrictions
+
+Currently, the `browser` API has similar restrictions to standard web extensions and will not function on certain protected pages:
+
+- `about:config`
+- `addons.mozilla.org`
+- Other privileged pages
+
+This limitation will be addressed in future versions.
+
+## Common Use Cases
+
+### Tabs Management
+
+Create, query, and manipulate tabs:
+
+```typescript
+// Create a new tab
+glide.keymaps.set("normal", "<leader>n", async () => {
+  await browser.tabs.create({
+    url: "https://example.com",
+    active: true,
+  });
+});
+
+// Query tabs
+glide.keymaps.set("normal", "<leader>l", async () => {
+  const tabs = await browser.tabs.query({});
+  console.log(`Open tabs: ${tabs.length}`);
+  
+  for (const tab of tabs) {
+    console.log(`- ${tab.title}: ${tab.url}`);
+  }
+});
+
+// Remove tabs
+glide.keymaps.set("normal", "<leader>x", async () => {
+  const tab = (await browser.tabs.query({ active: true }))[0];
+  if (tab?.id) {
+    await browser.tabs.remove(tab.id);
+  }
+});
+```
+
+### Theme Customization
+
+Dynamically update the browser theme:
+
+```typescript
+// Toggle dark/light theme
+let isDark = false;
+
+glide.keymaps.set("normal", "<leader>tt", async () => {
+  isDark = !isDark;
+  
+  await browser.theme.update(isDark ? {
+    colors: {
+      frame: "#1c1c1c",
+      toolbar: "#2d2d2d",
+      toolbar_text: "#ffffff",
+      tab_background_text: "#ffffff",
+    },
+  } : {
+    colors: {
+      frame: "#ffffff",
+      toolbar: "#f0f0f0",
+      toolbar_text: "#000000",
+      tab_background_text: "#000000",
+    },
+  });
+});
+
+// Reset to default theme
+glide.keymaps.set("normal", "<leader>tr", async () => {
+  await browser.theme.reset();
+});
+```
+
+### Script Injection
+
+Execute JavaScript in web pages:
+
+```typescript
+glide.keymaps.set("normal", "<leader>h", async () => {
+  const tab = (await browser.tabs.query({ active: true }))[0];
+  
+  if (!tab?.id) return;
+  
+  await browser.scripting.executeScript({
+    target: { tabId: tab.id },
+    func: () => {
+      document.body.style.border = "10px solid red";
+    },
+  });
+});
+
+// With arguments
+glide.keymaps.set("normal", "<leader>c", async () => {
+  const tab = (await browser.tabs.query({ active: true }))[0];
+  if (!tab?.id) return;
+  
+  const color = "#00ff00";
+  await browser.scripting.executeScript({
+    target: { tabId: tab.id },
+    func: (borderColor) => {
+      document.body.style.border = `5px solid ${borderColor}`;
+    },
+    args: [color],
+  });
+});
+```
+
+### CSS Injection
+
+Inject custom styles into web pages:
+
+```typescript
+glide.keymaps.set("normal", "<leader>s", async () => {
+  const tab = (await browser.tabs.query({ active: true }))[0];
+  if (!tab?.id) return;
+  
+  await browser.scripting.insertCSS({
+    target: { tabId: tab.id },
+    css: `
+      body {
+        filter: grayscale(100%);
+      }
+    `,
+  });
+});
+
+// Remove injected CSS
+glide.keymaps.set("normal", "<leader>S", async () => {
+  const tab = (await browser.tabs.query({ active: true }))[0];
+  if (!tab?.id) return;
+  
+  await browser.scripting.removeCSS({
+    target: { tabId: tab.id },
+    css: `
+      body {
+        filter: grayscale(100%);
+      }
+    `,
+  });
+});
+```
+
+### Bookmarks
+
+Manage browser bookmarks:
+
+```typescript
+// Create bookmark
+glide.keymaps.set("normal", "<leader>ba", async () => {
+  const tab = (await browser.tabs.query({ active: true }))[0];
+  
+  await browser.bookmarks.create({
+    title: tab.title || "Untitled",
+    url: tab.url,
+  });
+  
+  console.log("Bookmark created!");
+});
+
+// Search bookmarks
+glide.keymaps.set("normal", "<leader>bs", async () => {
+  const results = await browser.bookmarks.search({ query: "mozilla" });
+  
+  console.log(`Found ${results.length} bookmarks`);
+  for (const bookmark of results) {
+    console.log(`- ${bookmark.title}: ${bookmark.url}`);
+  }
+});
+```
+
+### History
+
+Access and manage browsing history:
+
+```typescript
+// Search history
+glide.keymaps.set("normal", "<leader>h", async () => {
+  const results = await browser.history.search({
+    text: "example",
+    maxResults: 10,
+  });
+  
+  for (const item of results) {
+    console.log(`${item.title}: ${item.url}`);
+  }
+});
+
+// Add to history
+await browser.history.addUrl({ url: "https://example.com" });
+
+// Remove from history
+await browser.history.deleteUrl({ url: "https://example.com" });
+```
+
+### Cookies
+
+Manage browser cookies:
+
+```typescript
+// Set cookie
+await browser.cookies.set({
+  name: "my_cookie",
+  value: "cookie_value",
+  url: "https://example.com",
+  path: "/",
+  secure: true,
+});
+
+// Get cookie
+const cookie = await browser.cookies.get({
+  name: "my_cookie",
+  url: "https://example.com",
+});
+
+console.log("Cookie value:", cookie?.value);
+
+// Remove cookie
+await browser.cookies.remove({
+  name: "my_cookie",
+  url: "https://example.com",
+});
+```
+
+### Storage
+
+Store persistent data:
+
+```typescript
+// Save data
+await browser.storage.local.set({
+  myKey: "myValue",
+  settings: { theme: "dark", fontSize: 14 },
+});
+
+// Retrieve data
+const result = await browser.storage.local.get(["myKey", "settings"]);
+console.log(result.myKey); // "myValue"
+console.log(result.settings); // { theme: "dark", fontSize: 14 }
+
+// Remove data
+await browser.storage.local.remove(["myKey"]);
+```
+
+### Downloads
+
+Manage downloads:
+
+```typescript
+// Start download
+const downloadId = await browser.downloads.download({
+  url: "https://example.com/file.pdf",
+  filename: "my-file.pdf",
+  saveAs: true,
+});
+
+// Search downloads
+const downloads = await browser.downloads.search({
+  query: ["pdf"],
+  limit: 10,
+});
+
+// Cancel download
+await browser.downloads.cancel(downloadId);
+```
+
+### Notifications
+
+Display system notifications:
+
+```typescript
+glide.keymaps.set("normal", "<leader>nn", async () => {
+  await browser.notifications.create({
+    type: "basic",
+    title: "Glide Notification",
+    message: "This is a notification from Glide!",
+    iconUrl: "chrome://branding/content/icon64.png",
+  });
+});
+```
+
+### Context Menus
+
+Create custom context menu items:
+
+```typescript
+// Note: This must be done in ConfigLoaded
+glide.autocmds.create("ConfigLoaded", async () => {
+  browser.contextMenus.create({
+    id: "glide-search",
+    title: "Search with Custom Engine",
+    contexts: ["selection"],
+  });
+  
+  browser.contextMenus.onClicked.addListener((info) => {
+    if (info.menuItemId === "glide-search" && info.selectionText) {
+      const url = `https://example.com/search?q=${encodeURIComponent(info.selectionText)}`;
+      browser.tabs.create({ url });
+    }
+  });
+});
+```
+
+### Web Requests
+
+Intercept and modify network requests:
+
+```typescript
+glide.autocmds.create("ConfigLoaded", async () => {
+  browser.webRequest.onBeforeRequest.addListener(
+    (details) => {
+      console.log(`Request to: ${details.url}`);
+      
+      // Block specific URLs
+      if (details.url.includes("ads")) {
+        return { cancel: true };
+      }
+      
+      return {};
+    },
+    { urls: ["<all_urls>"] },
+    ["blocking"]
+  );
+});
+```
+
+## Available Namespaces
+
+The `browser` object includes the following major namespaces:
+
+- `browser.tabs` - Tab management
+- `browser.windows` - Window management
+- `browser.bookmarks` - Bookmark operations
+- `browser.history` - Browsing history
+- `browser.cookies` - Cookie management
+- `browser.storage` - Persistent storage
+- `browser.downloads` - Download management
+- `browser.notifications` - System notifications
+- `browser.theme` - Browser theme customization
+- `browser.scripting` - Script and CSS injection
+- `browser.contextMenus` - Custom context menus
+- `browser.webRequest` - Network request interception
+- `browser.sessions` - Session management
+- `browser.contextualIdentities` - Container tabs
+- `browser.search` - Search engine access
+- `browser.runtime` - Extension runtime
+- `browser.i18n` - Internationalization
+- `browser.permissions` - Permission management
+
+For complete API documentation, refer to the [MDN Web Extensions API reference](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API).
+
+## Runtime Information
+
+```typescript
+// Get runtime ID
+const id = browser.runtime.id;
+
+// Get manifest
+const manifest = await browser.runtime.getManifest();
+console.log(manifest.name); // "Glide Internal"
+
+// Get platform info
+const platform = await browser.runtime.getPlatformInfo();
+console.log(platform.os); // "linux", "mac", "win", etc.
+
+// Get browser info
+const info = await browser.runtime.getBrowserInfo();
+console.log(info.name); // "Glide"
+console.log(info.vendor); // "Glide"
+```
+
+## Complete Example
+
+Here's a comprehensive example combining multiple browser APIs:
+
+```typescript
+glide.autocmds.create("ConfigLoaded", async () => {
+  // Set up event listeners
+  browser.tabs.onCreated.addListener((tab) => {
+    console.log(`New tab: ${tab.url}`);
+  });
+  
+  browser.tabs.onRemoved.addListener((tabId) => {
+    console.log(`Tab ${tabId} closed`);
+  });
+});
+
+// Tab management shortcuts
+glide.keymaps.set("normal", "<leader>tn", async () => {
+  await browser.tabs.create({ url: "about:blank" });
+});
+
+glide.keymaps.set("normal", "<leader>tc", async () => {
+  const tab = (await browser.tabs.query({ active: true }))[0];
+  if (tab?.id) await browser.tabs.remove(tab.id);
+});
+
+// Theme toggling
+let darkMode = false;
+glide.keymaps.set("normal", "<leader>td", async () => {
+  darkMode = !darkMode;
+  await browser.theme.update(darkMode ? {
+    colors: {
+      frame: "#1c1c1c",
+      toolbar: "#2d2d2d",
+      toolbar_text: "#ffffff",
+    },
+  } : {});
+});
+
+// Bookmarking
+glide.keymaps.set("normal", "<leader>ba", async () => {
+  const tab = (await browser.tabs.query({ active: true }))[0];
+  await browser.bookmarks.create({
+    title: tab.title || "Untitled",
+    url: tab.url,
+  });
+  
+  await browser.notifications.create({
+    type: "basic",
+    title: "Bookmark Added",
+    message: `Saved: ${tab.title}`,
+  });
+});
+```
+
+## See Also
+
+- [MDN Web Extensions API](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API)
+- [glide.content.execute()](/api/content#execute) - Execute functions in content context
+- [glide.tabs](/api/tabs) - Glide's higher-level tab API

@@ -1,0 +1,349 @@
+---
+title: 'glide.content'
+description: 'API for executing code in the content process'
+---
+
+## Overview
+
+The `glide.content` API allows you to execute code in the content process (the web page context) rather than the main browser process. This is essential for interacting with page DOM, handling page-specific events, and manipulating web content.
+
+<Info>
+  Glide uses a multi-process architecture like Firefox. The main process handles browser UI and coordination, while each tab runs in a separate content process for security and stability.
+</Info>
+
+## Methods
+
+### fn()
+
+Mark a function so that it will be executed in the content process instead of the main process.
+
+<CodeGroup>
+```typescript Signature
+glide.content.fn<F extends (...args: any[]) => any>(
+  wrapped: F
+): glide.ContentFunction<F>
+```
+
+```typescript Example
+// Create an excmd that runs in the content process
+glide.excmds.create(
+  { name: "focus_page" },
+  glide.content.fn(() => {
+    document.body?.focus();
+  })
+);
+
+// Use with keymaps to interact with page elements
+glide.keymaps.set(
+  'normal',
+  '<leader>h',
+  glide.content.fn(() => {
+    // This code runs in the page context
+    const heading = document.querySelector('h1');
+    if (heading) {
+      heading.scrollIntoView({ behavior: 'smooth' });
+    }
+  })
+);
+
+// Add custom elements to the page
+glide.keymaps.set(
+  'normal',
+  '<leader>b',
+  glide.content.fn(() => {
+    document.body?.appendChild(
+      DOM.create_element('div', {
+        id: 'my-custom-banner',
+        textContent: 'Hello from Glide!'
+      })
+    );
+  })
+);
+```
+</CodeGroup>
+
+<ParamField path="wrapped" type="F extends (...args: any[]) => any" required>
+  The function to execute in the content process. This function will be serialized and sent to the content process, so it cannot capture any outside variables.
+</ParamField>
+
+<ResponseField name="return" type="glide.ContentFunction<F>">
+  A wrapped function that can be used with excmds and keymaps. When invoked, it will execute in the content process.
+</ResponseField>
+
+<Warning>
+  Functions marked with `glide.content.fn()` are **serialized** before being sent to the content process. This means:
+  - They cannot access variables from the surrounding scope
+  - They cannot use closures
+  - All logic must be self-contained within the function
+</Warning>
+
+---
+
+### execute()
+
+Execute a function in the content process for a specific tab.
+
+<CodeGroup>
+```typescript Signature
+// Without arguments
+glide.content.execute<const Return>(
+  func: () => Return,
+  opts: {
+    tab_id: number | glide.TabWithID;
+    args?: undefined;
+  }
+): Promise<Return>
+
+// With arguments
+glide.content.execute<const Args extends readonly any[], const Return>(
+  func: (...args: Args) => Return,
+  opts: {
+    tab_id: number | glide.TabWithID;
+    args: Args;
+  }
+): Promise<Return>
+```
+
+```typescript Example: Basic Usage
+// Get page title from content process
+const tab = await glide.tabs.active();
+const title = await glide.content.execute(
+  () => document.title,
+  { tab_id: tab }
+);
+console.log('Page title:', title);
+
+// Append element to page
+await glide.content.execute(
+  () => {
+    document.body?.appendChild(
+      DOM.create_element('p', ['This text was added by Glide!'])
+    );
+  },
+  { tab_id: tab }
+);
+```
+
+```typescript Example: With Arguments
+// Function that accepts arguments
+function setBorderStyle(css: string) {
+  document.body!.style.setProperty('border', css);
+}
+
+const tab = await glide.tabs.active();
+await glide.content.execute(
+  setBorderStyle,
+  { 
+    tab_id: tab, 
+    args: ['20px dotted pink'] 
+  }
+);
+```
+
+```typescript Example: Return Values
+// Extract data from the page
+const tab = await glide.tabs.active();
+const linkCount = await glide.content.execute(
+  () => document.querySelectorAll('a').length,
+  { tab_id: tab }
+);
+console.log(`Page has ${linkCount} links`);
+
+// Return complex data
+const pageInfo = await glide.content.execute(
+  () => ({
+    title: document.title,
+    url: window.location.href,
+    linkCount: document.querySelectorAll('a').length,
+    hasVideo: document.querySelector('video') !== null
+  }),
+  { tab_id: tab }
+);
+```
+
+```typescript Example: In Keymaps
+glide.keymaps.set('normal', '<leader>i', async ({ tab_id }) => {
+  const info = await glide.content.execute(
+    () => {
+      const images = document.querySelectorAll('img');
+      return {
+        total: images.length,
+        loaded: Array.from(images).filter(img => img.complete).length
+      };
+    },
+    { tab_id }
+  );
+  
+  console.log(`Images: ${info.loaded}/${info.total} loaded`);
+});
+```
+</CodeGroup>
+
+<ParamField path="func" type="(...args: Args) => Return" required>
+  The function to execute in the content process. This function will be stringified before being sent, so it **cannot capture any outside variables**.
+</ParamField>
+
+<ParamField path="opts.tab_id" type="number | glide.TabWithID" required>
+  The ID of the tab to inject the code into, or the tab object returned by `glide.tabs.active()`.
+</ParamField>
+
+<ParamField path="opts.args" type="Args">
+  Arguments to pass to the function. **Must be JSON serializable**. Use this to pass data into your content function since closures don't work.
+</ParamField>
+
+<ResponseField name="return" type="Promise<Return>">
+  A promise that resolves to the return value of the executed function.
+</ResponseField>
+
+<Warning>
+  **Critical Limitations:**
+  
+  1. The function is **stringified** before execution, so it cannot access variables from the outer scope
+  2. All arguments must be **JSON serializable** (no functions, DOM elements, etc.)
+  3. The return value must also be JSON serializable
+  
+  **This will NOT work:**
+  ```typescript
+  const color = 'red';
+  await glide.content.execute(
+    () => document.body.style.color = color, // Error: color is undefined!
+    { tab_id }
+  );
+  ```
+  
+  **This WILL work:**
+  ```typescript
+  const color = 'red';
+  await glide.content.execute(
+    (c: string) => document.body.style.color = c,
+    { tab_id, args: [color] }
+  );
+  ```
+</Warning>
+
+## DOM Utilities
+
+When executing code in the content process, you have access to the `DOM` global utility:
+
+### DOM.create_element()
+
+Helper for creating DOM elements with a convenient API:
+
+```typescript
+// Simple element
+const div = DOM.create_element('div', ['Hello, world!']);
+
+// With attributes
+const link = DOM.create_element('a', {
+  attributes: {
+    href: 'https://example.com',
+    target: '_blank'
+  },
+  textContent: 'Click me'
+});
+
+// With children
+const container = DOM.create_element('div', [
+  DOM.create_element('h1', ['Title']),
+  DOM.create_element('p', ['Paragraph text'])
+]);
+```
+
+### DOM.listeners.has()
+
+Check if an element has event listeners:
+
+```typescript
+const button = document.querySelector('button');
+if (DOM.listeners.has(button, 'click')) {
+  console.log('Button has click listeners');
+}
+```
+
+## Complete Examples
+
+### Highlight All Links
+
+```typescript glide.ts
+glide.keymaps.set('normal', '<leader>hl', async ({ tab_id }) => {
+  await glide.content.execute(
+    (color: string) => {
+      const links = document.querySelectorAll('a');
+      links.forEach(link => {
+        (link as HTMLElement).style.backgroundColor = color;
+      });
+    },
+    { tab_id, args: ['yellow'] }
+  );
+});
+```
+
+### Extract and Log Page Data
+
+```typescript glide.ts
+glide.keymaps.set('normal', '<leader>pa', async ({ tab_id }) => {
+  const analysis = await glide.content.execute(
+    () => {
+      return {
+        url: window.location.href,
+        title: document.title,
+        headings: {
+          h1: document.querySelectorAll('h1').length,
+          h2: document.querySelectorAll('h2').length,
+          h3: document.querySelectorAll('h3').length
+        },
+        images: document.querySelectorAll('img').length,
+        links: document.querySelectorAll('a').length,
+        forms: document.querySelectorAll('form').length,
+        scripts: document.querySelectorAll('script').length
+      };
+    },
+    { tab_id }
+  );
+  
+  console.log('Page Analysis:', analysis);
+});
+```
+
+### Inject Custom CSS
+
+```typescript glide.ts
+glide.excmds.create(
+  { name: 'dark_mode', description: 'Toggle dark mode on current page' },
+  glide.content.fn(() => {
+    const styleId = 'glide-dark-mode';
+    const existing = document.getElementById(styleId);
+    
+    if (existing) {
+      existing.remove();
+    } else {
+      const style = DOM.create_element('style', {
+        id: styleId,
+        textContent: `
+          html {
+            filter: invert(1) hue-rotate(180deg);
+          }
+          img, video {
+            filter: invert(1) hue-rotate(180deg);
+          }
+        `
+      });
+      document.head.appendChild(style);
+    }
+  })
+);
+```
+
+## Type Reference
+
+### glide.ContentFunction\<F\>
+
+```typescript
+interface ContentFunction<F extends (...args: any[]) => any> {
+  $brand: "$glide.content.fn";
+  fn: F;
+  name: string;
+}
+```
+
+Represents a function that will be executed in the content process. Created by `glide.content.fn()`.

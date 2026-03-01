@@ -1,0 +1,355 @@
+---
+title: "glide.fs"
+description: "File system operations for reading, writing, and managing files"
+---
+
+The `glide.fs` API provides methods for interacting with the file system. Relative paths are resolved relative to the config directory.
+
+## Methods
+
+### read()
+
+Read the file at the given path.
+
+```typescript
+const content = await glide.fs.read(
+  path: string,
+  encoding: "utf8"
+): Promise<string>
+```
+
+<ParamField path="path" type="string" required>
+  Path to the file to read. Can be relative (to config directory) or absolute.
+</ParamField>
+
+<ParamField path="encoding" type="'utf8'" required>
+  File encoding. Currently only `"utf8"` is supported.
+</ParamField>
+
+<ResponseField name="content" type="string">
+  The file contents as a UTF-8 string.
+</ResponseField>
+
+<Note>
+  Relative paths are resolved relative to the config directory. If no config directory is defined, relative paths are not allowed.
+</Note>
+
+**Example: Read CSS file**
+
+```typescript
+const css = await glide.fs.read("github.css", "utf8");
+glide.styles.add(css);
+```
+
+**Example: Read file with absolute path**
+
+```typescript
+const content = await glide.fs.read(
+  `${glide.path.home_dir}/.config/foo/config.json`,
+  "utf8"
+);
+```
+
+**Example: Error handling**
+
+```typescript
+try {
+  const content = await glide.fs.read("nonexistent.txt", "utf8");
+} catch (err) {
+  if (err.name === "FileNotFoundError") {
+    console.log("File not found:", err.path);
+  }
+}
+```
+
+---
+
+### write()
+
+Write to the file at the given path. Creates parent directories if they don't exist.
+
+```typescript
+await glide.fs.write(
+  path: string,
+  contents: string
+): Promise<void>
+```
+
+<ParamField path="path" type="string" required>
+  Path to the file to write. Can be relative (to config directory) or absolute.
+</ParamField>
+
+<ParamField path="contents" type="string" required>
+  Contents to write to the file (encoded as UTF-8).
+</ParamField>
+
+<Note>
+  If the path has parent directories that don't exist, they will be created automatically.
+</Note>
+
+**Example: Write CSS file**
+
+```typescript
+await glide.fs.write(
+  "github.css",
+  ".copilot { display: none !important }"
+);
+```
+
+**Example: Write to nested directory**
+
+```typescript
+// Creates 'missing-dir/nested/' if it doesn't exist
+await glide.fs.write("missing-dir/nested/new.css", "#id {}");
+```
+
+**Example: Update configuration file**
+
+```typescript
+const config = { theme: "dark", fontSize: 14 };
+await glide.fs.write(
+  "settings.json",
+  JSON.stringify(config, null, 2)
+);
+```
+
+---
+
+### exists()
+
+Determine if the given path exists.
+
+```typescript
+const exists = await glide.fs.exists(
+  path: string
+): Promise<boolean>
+```
+
+<ParamField path="path" type="string" required>
+  Path to check. Can be relative (to config directory) or absolute.
+</ParamField>
+
+<ResponseField name="exists" type="boolean">
+  `true` if the path exists, `false` otherwise.
+</ResponseField>
+
+**Example: Check if file exists**
+
+```typescript
+if (await glide.fs.exists("custom.css")) {
+  const css = await glide.fs.read("custom.css", "utf8");
+  glide.styles.add(css);
+}
+```
+
+**Example: Check absolute path**
+
+```typescript
+const configExists = await glide.fs.exists(
+  `${glide.path.home_dir}/.config/foo`
+);
+```
+
+---
+
+### stat()
+
+Obtain information about a file, such as size, modification dates, and type.
+
+```typescript
+const info = await glide.fs.stat(
+  path: string
+): Promise<glide.FileInfo>
+```
+
+<ParamField path="path" type="string" required>
+  Path to the file or directory. Can be relative (to config directory) or absolute.
+</ParamField>
+
+<ResponseField name="FileInfo" type="glide.FileInfo">
+  File information object.
+
+  <Expandable title="FileInfo properties">
+    <ResponseField name="type" type="'file' | 'directory' | null">
+      The type of the file system entry.
+    </ResponseField>
+
+    <ResponseField name="size" type="number | undefined">
+      Size of the file in bytes.
+    </ResponseField>
+
+    <ResponseField name="permissions" type="number | undefined">
+      File permissions (Unix-style permission bits).
+    </ResponseField>
+
+    <ResponseField name="last_accessed" type="number | undefined">
+      Timestamp of last access (milliseconds since epoch).
+    </ResponseField>
+
+    <ResponseField name="last_modified" type="number | undefined">
+      Timestamp of last modification (milliseconds since epoch).
+    </ResponseField>
+
+    <ResponseField name="creation_time" type="number | undefined">
+      Timestamp of creation (milliseconds since epoch).
+    </ResponseField>
+
+    <ResponseField name="path" type="string | undefined">
+      The full path to the file.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+**Example: Get file information**
+
+```typescript
+const stat = await glide.fs.stat('userChrome.css');
+console.log('Type:', stat.type);              // "file"
+console.log('Size:', stat.size, 'bytes');     // 1234 bytes
+console.log('Modified:', stat.last_modified); // 1758835015092
+```
+
+**Example: Check if path is a directory**
+
+```typescript
+const stat = await glide.fs.stat(glide.path.profile_dir);
+if (stat.type === 'directory') {
+  console.log('Path is a directory');
+}
+```
+
+**Example: Compare modification times**
+
+```typescript
+const cssFile = await glide.fs.stat('styles.css');
+const jsFile = await glide.fs.stat('config.js');
+
+if (cssFile.last_modified > jsFile.last_modified) {
+  console.log('CSS file was modified more recently');
+}
+```
+
+---
+
+### mkdir()
+
+Create a new directory at the given path.
+
+```typescript
+await glide.fs.mkdir(
+  path: string,
+  props?: {
+    parents?: boolean;
+    exists_ok?: boolean;
+  }
+): Promise<void>
+```
+
+<ParamField path="path" type="string" required>
+  Path to the directory to create. Can be relative (to config directory) or absolute.
+</ParamField>
+
+<ParamField path="props" type="object">
+  Options for directory creation.
+
+  <Expandable title="Properties">
+    <ParamField path="parents" type="boolean" default={true}>
+      If `true`, create missing parent directories. If `false`, error if parent doesn't exist.
+    </ParamField>
+
+    <ParamField path="exists_ok" type="boolean" default={true}>
+      If `true`, don't error if the directory already exists. If `false`, throw error if it exists.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+**Example: Create directory**
+
+```typescript
+await glide.fs.mkdir('test_dir');
+```
+
+**Example: Create nested directories**
+
+```typescript
+// Creates 'parent' and 'parent/nested_child'
+await glide.fs.mkdir('parent/nested_child');
+await glide.fs.write('parent/nested_child/foo.txt', 'test');
+```
+
+**Example: Require parent to exist**
+
+```typescript
+try {
+  await glide.fs.mkdir('parent/child', { parents: false });
+} catch (err) {
+  console.log('Parent directory must exist');
+}
+```
+
+**Example: Error if directory exists**
+
+```typescript
+try {
+  await glide.fs.mkdir('existing_dir', { exists_ok: false });
+} catch (err) {
+  console.log('Directory already exists');
+}
+```
+
+## Types
+
+### glide.FileInfo
+
+```typescript
+type FileInfo = {
+  type: "file" | "directory" | null;
+  permissions: number | undefined;
+  last_accessed: number | undefined;
+  last_modified: number | undefined;
+  creation_time: number | undefined;
+  path: string | undefined;
+  size: number | undefined;
+}
+```
+
+### FileNotFoundError
+
+Thrown when attempting to read or stat a file that doesn't exist.
+
+```typescript
+class FileNotFoundError extends Error {
+  name: 'FileNotFoundError';
+  path: string;
+}
+```
+
+## Path Resolution
+
+Relative paths in `glide.fs` methods are resolved relative to the config directory:
+
+```typescript
+// If config is at ~/.config/glide/glide.ts
+// This reads ~/.config/glide/styles.css
+const css = await glide.fs.read("styles.css", "utf8");
+
+// Absolute paths work as expected
+const home = await glide.fs.read(
+  `${glide.path.home_dir}/.bashrc`,
+  "utf8"
+);
+```
+
+When using `glide.include()` (see [Advanced Config](/guides/advanced-config)), file operations are resolved relative to the file making the call:
+
+```typescript
+// In ~/.config/glide/plugins/my-plugin/glide.ts
+const data = await glide.fs.read("data.txt", "utf8");
+// Reads ~/.config/glide/plugins/my-plugin/data.txt
+```
+
+## Related APIs
+
+- [`glide.path`](/api/path) - Path utilities and constants
+- [`glide.process`](/api/process) - Execute shell commands
+- [`glide.env`](/api/environment) - Environment variable management

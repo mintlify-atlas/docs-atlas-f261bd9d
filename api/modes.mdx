@@ -1,0 +1,273 @@
+---
+title: glide.modes
+description: Register custom modes and list available modes
+---
+
+The `glide.modes` API allows you to register custom modes beyond the built-in ones.
+
+## Built-in Modes
+
+Glide comes with the following built-in modes:
+
+- `normal` - Default navigation mode
+- `insert` - Text editing mode
+- `visual` - Visual selection mode
+- `ignore` - Pass through all keys to the page
+- `command` - Command-line mode
+- `op-pending` - Operator-pending mode (e.g., after pressing `d`)
+
+---
+
+## Methods
+
+### register()
+
+Register a custom mode with a specific caret style.
+
+```typescript
+glide.modes.register<Mode extends keyof GlideModes>(
+  mode: Mode,
+  opts: { caret: "block" | "line" | "underline" }
+): void
+```
+
+#### Parameters
+
+<ParamField path="mode" type="string" required>
+  The name of the mode to register. Must be declared in the `GlideModes` interface first.
+</ParamField>
+
+<ParamField path="opts.caret" type="'block' | 'line' | 'underline'" required>
+  The caret style to use in this mode:
+  - `block` - Solid block cursor (like Vim normal mode)
+  - `line` - Vertical line cursor (like Vim insert mode)
+  - `underline` - Underline cursor
+</ParamField>
+
+#### Example
+
+To register a custom mode, you must first declare it in the type system:
+
+```typescript
+// 1. Declare the mode type
+declare global {
+  interface GlideModes {
+    leap: "leap";
+  }
+}
+
+// 2. Register the mode at runtime
+glide.modes.register('leap', { caret: 'block' });
+
+// 3. Use it like any other mode
+glide.keymaps.set('leap', 's', 'hint', {
+  description: 'Show hints in leap mode'
+});
+
+glide.keymaps.set('normal', '<leader>l', 'mode_change leap', {
+  description: 'Enter leap mode'
+});
+```
+
+**Implementation:**
+```typescript:browser-api.mts:885-894
+modes: {
+  register(mode, opts) {
+    if (GlideBrowser._modes[mode]) {
+      throw new Error(`The \`${mode}\` mode has already been registered. Modes can only be registered once`);
+    }
+
+    GlideBrowser._modes[mode] = { caret: opts.caret };
+    MODE_SCHEMA_TYPE.enum.push(mode);
+    GlideBrowser.key_manager.register_mode(mode);
+  },
+}
+```
+
+---
+
+### list()
+
+Returns an array of all registered mode names.
+
+```typescript
+glide.modes.list(): GlideMode[]
+```
+
+#### Returns
+
+An array of mode names (strings).
+
+#### Example
+
+```typescript
+const modes = glide.modes.list();
+console.log('Available modes:', modes);
+// Output: ["normal", "insert", "visual", "ignore", "command", "op-pending"]
+
+// Check if a custom mode exists
+if (modes.includes('leap')) {
+  console.log('Leap mode is registered');
+}
+```
+
+**Implementation:**
+```typescript:browser-api.mts:895-897
+list() {
+  return Object.keys(GlideBrowser._modes) as GlideMode[];
+},
+```
+
+---
+
+## Type Declaration
+
+The `GlideModes` interface defines all available modes:
+
+```typescript:glide.d.ts:1118-1125
+interface GlideModes {
+  normal: "normal";
+  insert: "insert";
+  visual: "visual";
+  ignore: "ignore";
+  command: "command";
+  "op-pending": "op-pending";
+}
+```
+
+The `GlideMode` type is derived from the interface keys:
+
+```typescript:glide.d.ts:1132
+type GlideMode = keyof GlideModes;
+```
+
+---
+
+## Complete Custom Mode Example
+
+Here's a complete example of creating a "search" mode for quick web searches:
+
+```typescript
+// 1. Declare the mode type
+declare global {
+  interface GlideModes {
+    search: "search";
+  }
+}
+
+// 2. Register the mode
+glide.modes.register('search', { caret: 'line' });
+
+// 3. Create mappings for the mode
+glide.keymaps.set('search', 'g', 'open https://google.com/search?q=', {
+  description: 'Google search'
+});
+
+glide.keymaps.set('search', 'd', 'open https://duckduckgo.com/?q=', {
+  description: 'DuckDuckGo search'
+});
+
+glide.keymaps.set('search', 'y', 'open https://youtube.com/results?search_query=', {
+  description: 'YouTube search'
+});
+
+glide.keymaps.set('search', '<Esc>', 'mode_change normal', {
+  description: 'Exit search mode'
+});
+
+// 4. Create an entry point from normal mode
+glide.keymaps.set('normal', '<leader>s', 'mode_change search', {
+  description: 'Enter search mode'
+});
+
+// 5. Add visual feedback with autocmd
+glide.autocmds.create('ModeChanged', '*:search', () => {
+  console.log('Entered search mode - press g/d/y for searches');
+});
+
+glide.autocmds.create('ModeChanged', 'search:*', () => {
+  console.log('Exited search mode');
+});
+```
+
+---
+
+## Mode-Specific Behavior
+
+### Checking Current Mode
+
+```typescript
+if (glide.ctx.mode === 'normal') {
+  console.log('Currently in normal mode');
+}
+
+const modes = glide.modes.list();
+if (modes.includes(glide.ctx.mode)) {
+  console.log('Valid mode:', glide.ctx.mode);
+}
+```
+
+### Mode Change Autocmds
+
+```typescript
+// Trigger on entering any custom mode
+glide.autocmds.create('ModeChanged', '*:search', ({ new_mode }) => {
+  console.log('Entered search mode');
+});
+
+// Trigger on leaving custom mode
+glide.autocmds.create('ModeChanged', 'search:*', ({ old_mode, new_mode }) => {
+  console.log(`Left ${old_mode} mode, entered ${new_mode} mode`);
+});
+
+// Trigger on any mode change
+glide.autocmds.create('ModeChanged', '*', ({ old_mode, new_mode }) => {
+  console.log(`Mode changed: ${old_mode} -> ${new_mode}`);
+});
+```
+
+---
+
+## Advanced Example: Modal Layer
+
+Create a "window" mode for window management:
+
+```typescript
+declare global {
+  interface GlideModes {
+    window: "window";
+  }
+}
+
+glide.modes.register('window', { caret: 'block' });
+
+// Window management mappings
+const windowMappings = {
+  'n': { cmd: 'window_new', desc: 'New window' },
+  'c': { cmd: 'window_close', desc: 'Close window' },
+  's': { cmd: 'window_switch', desc: 'Switch window' },
+  'f': { cmd: 'window_fullscreen', desc: 'Toggle fullscreen' },
+  'm': { cmd: 'window_minimize', desc: 'Minimize window' },
+};
+
+for (const [key, { cmd, desc }] of Object.entries(windowMappings)) {
+  glide.keymaps.set('window', key, cmd, { description: desc });
+}
+
+// Exit back to normal
+glide.keymaps.set('window', '<Esc>', 'mode_change normal');
+glide.keymaps.set('window', 'q', 'mode_change normal');
+
+// Enter window mode from normal
+glide.keymaps.set('normal', '<leader>w', 'mode_change window', {
+  description: 'Window mode'
+});
+
+// Show available commands when entering
+glide.autocmds.create('ModeChanged', '*:window', () => {
+  const modes = Object.entries(windowMappings)
+    .map(([k, { desc }]) => `${k}: ${desc}`)
+    .join(', ');
+  console.log('Window mode:', modes);
+});
+```

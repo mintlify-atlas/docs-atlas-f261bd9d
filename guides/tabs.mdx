@@ -1,0 +1,385 @@
+---
+title: Tab Management
+description: Efficient workflows for managing browser tabs in Glide
+---
+
+# Tab Management
+
+Glide provides powerful APIs for managing browser tabs programmatically. This guide covers common tab management workflows and patterns.
+
+## Tab Visibility
+
+### Native Tab Bar
+
+Control the visibility of Firefox's built-in tab bar:
+
+```typescript
+// Hide native tabs
+glide.o.native_tabs = "hide";
+
+// Auto-hide tabs (show on hover)
+glide.o.native_tabs = "autohide";
+
+// Always show tabs (default)
+glide.o.native_tabs = "show";
+```
+
+<Note>
+The `autohide` option does not currently work on macOS.
+</Note>
+
+### Custom Styling
+
+Hide the tab bar completely with CSS:
+
+```typescript
+glide.styles.add(css`
+  #TabsToolbar {
+    visibility: collapse !important;
+  }
+`);
+```
+
+For vertical tabs, adjust the collapsed width:
+
+```typescript
+glide.o.native_tabs = "autohide";
+glide.styles.add(css`
+  :root {
+    --uc-tab-collapsed-width: 2px;
+  }
+`);
+```
+
+## Tab Querying
+
+### Get Active Tab
+
+Retrieve the currently focused tab:
+
+```typescript
+const tab = await glide.tabs.active();
+console.log(tab.url);
+console.log(tab.id);
+```
+
+This is equivalent to:
+
+```typescript
+const tabs = await browser.tabs.query({ active: true, currentWindow: true });
+const tab = tabs[0];
+```
+
+### Find Specific Tabs
+
+Find the first tab matching a query:
+
+```typescript
+const tab = await glide.tabs.get_first({ 
+  url: "*://github.com/*" 
+});
+
+if (tab?.id) {
+  await browser.tabs.update(tab.id, { active: true });
+}
+```
+
+Query all matching tabs:
+
+```typescript
+const tabs = await glide.tabs.query({ 
+  title: "Example Domain" 
+});
+
+console.log(`Found ${tabs.length} tabs`);
+```
+
+## Tab Operations
+
+### Creating Tabs
+
+Create a new tab:
+
+```typescript
+glide.keymaps.set("normal", "<leader>t", async () => {
+  await browser.tabs.create({
+    url: "https://example.com",
+    active: true
+  });
+});
+```
+
+Create tab in background:
+
+```typescript
+await browser.tabs.create({
+  url: "https://example.com",
+  active: false
+});
+```
+
+### Switching Tabs
+
+Switch to a specific tab:
+
+```typescript
+glide.keymaps.set("normal", "gt", async () => {
+  const tab = await glide.tabs.get_first({ url: "*://example.com/*" });
+  if (tab?.id) {
+    await browser.tabs.update(tab.id, { active: true });
+  }
+}, { description: "[g]o to example.com tab" });
+```
+
+Cycle through tabs:
+
+```typescript
+// Next tab
+glide.keymaps.set("normal", "gt", "tab_next");
+
+// Previous tab
+glide.keymaps.set("normal", "gT", "tab_prev");
+```
+
+### Closing Tabs
+
+Close current tab:
+
+```typescript
+glide.keymaps.set("normal", "d", "tab_close");
+```
+
+Close specific tabs:
+
+```typescript
+glide.keymaps.set("normal", "<leader>d", async () => {
+  const tabs = await glide.tabs.query({ url: "*://example.com/*" });
+  const ids = tabs.map(t => t.id).filter(Boolean);
+  if (ids.length > 0) {
+    await browser.tabs.remove(ids);
+  }
+});
+```
+
+### Unloading Tabs
+
+Unload tabs to free memory without closing them:
+
+```typescript
+glide.keymaps.set("normal", "<leader>u", async () => {
+  const tabs = await glide.tabs.query({ 
+    active: false,
+    currentWindow: true 
+  });
+  
+  // Get tab IDs (excluding current tab)
+  const ids = tabs.map(t => t.id).filter(Boolean);
+  
+  if (ids.length > 0) {
+    await glide.tabs.unload(...ids);
+  }
+});
+```
+
+<Warning>
+You cannot unload the currently active tab. Attempting to do so will throw an error.
+</Warning>
+
+## Tab Organization
+
+### Grouping by Domain
+
+```typescript
+glide.keymaps.set("normal", "<leader>g", async () => {
+  const tabs = await glide.tabs.query({ currentWindow: true });
+  
+  const groups = new Map<string, typeof tabs>();
+  
+  for (const tab of tabs) {
+    if (!tab.url) continue;
+    const domain = new URL(tab.url).hostname;
+    if (!groups.has(domain)) {
+      groups.set(domain, []);
+    }
+    groups.get(domain)!.push(tab);
+  }
+  
+  console.log(`Found ${groups.size} unique domains`);
+});
+```
+
+### Pin/Unpin Tabs
+
+```typescript
+glide.keymaps.set("normal", "<leader>p", async () => {
+  const tab = await glide.tabs.active();
+  await browser.tabs.update(tab.id, { pinned: !tab.pinned });
+});
+```
+
+## New Tab Configuration
+
+### Custom New Tab Page
+
+Set the URL loaded when creating new tabs:
+
+```typescript
+// Set to a local file
+glide.o.newtab_url = "file:///path/to/page.html";
+
+// Set to a website
+glide.o.newtab_url = "https://example.com";
+
+// Default Firefox new tab
+glide.o.newtab_url = "about:newtab";
+```
+
+### Homepage Configuration
+
+Set browser homepage:
+
+```typescript
+glide.prefs.set("browser.startup.homepage", "https://example.com");
+```
+
+## Advanced Patterns
+
+### Tab Context Tracking
+
+Track and restore tab state:
+
+```typescript
+declare global {
+  interface GlideGlobals {
+    tab_history?: Map<number, string[]>;
+  }
+}
+
+glide.g.tab_history = new Map();
+
+glide.autocmds.create("UrlEnter", /./, ({ tab_id, url }) => {
+  if (!glide.g.tab_history!.has(tab_id)) {
+    glide.g.tab_history!.set(tab_id, []);
+  }
+  glide.g.tab_history!.get(tab_id)!.push(url);
+});
+```
+
+### Duplicate Tab Detection
+
+Prevent duplicate tabs:
+
+```typescript
+glide.keymaps.set("normal", "<leader>n", async () => {
+  const url = "https://example.com";
+  const existing = await glide.tabs.get_first({ url });
+  
+  if (existing?.id) {
+    await browser.tabs.update(existing.id, { active: true });
+  } else {
+    await browser.tabs.create({ url, active: true });
+  }
+});
+```
+
+### Smart Tab Reloading
+
+Reload tabs matching a pattern:
+
+```typescript
+glide.keymaps.set("normal", "<leader>r", async () => {
+  const tabs = await glide.tabs.query({ 
+    url: "*://localhost:*/*" 
+  });
+  
+  for (const tab of tabs) {
+    if (tab.id) {
+      await browser.tabs.reload(tab.id);
+    }
+  }
+});
+```
+
+## Window Management
+
+### Multi-Window Operations
+
+```typescript
+glide.keymaps.set("normal", "<leader>w", async () => {
+  const windows = await browser.windows.getAll();
+  const currentWindow = windows.find(w => w.focused);
+  
+  console.log(`Total windows: ${windows.length}`);
+  console.log(`Current window ID: ${currentWindow?.id}`);
+});
+```
+
+### Move Tab to New Window
+
+```typescript
+glide.keymaps.set("normal", "<leader>m", async () => {
+  const tab = await glide.tabs.active();
+  await browser.windows.create({ tabId: tab.id });
+});
+```
+
+## Split Views (Experimental)
+
+<Warning>
+Split views are experimental in Firefox. There will be bugs.
+</Warning>
+
+### Creating Split Views
+
+```typescript
+glide.keymaps.set("normal", "<leader>s", async () => {
+  const tabs = await glide.tabs.query({ 
+    currentWindow: true,
+    pinned: false 
+  });
+  
+  if (tabs.length >= 2) {
+    const splitView = glide.unstable.split_views.create(
+      [tabs[0], tabs[1]]
+    );
+    console.log(`Created split view: ${splitView.id}`);
+  }
+});
+```
+
+### Checking Split Status
+
+```typescript
+const tab = await glide.tabs.active();
+const hasSplit = glide.unstable.split_views.has_split_view(tab);
+```
+
+### Separating Split Views
+
+```typescript
+glide.keymaps.set("normal", "<leader>S", async () => {
+  const tab = await glide.tabs.active();
+  glide.unstable.split_views.separate(tab);
+});
+```
+
+## Performance Tips
+
+<Tip>
+Use `glide.tabs.unload()` to free memory from inactive tabs without closing them. This is especially useful for tab hoarders.
+</Tip>
+
+<Tip>
+Batch tab operations when possible to reduce overhead:
+
+```typescript
+const ids = tabs.map(t => t.id).filter(Boolean);
+await browser.tabs.remove(ids); // Better than individual removes
+```
+</Tip>
+
+## See Also
+
+- [Navigation](/guides/navigation) - Keyboard navigation patterns
+- [Autocmds](/guides/autocmds) - Event-driven tab automation
+- [Customization](/guides/customization) - Styling and appearance

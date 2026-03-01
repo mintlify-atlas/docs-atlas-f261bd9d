@@ -1,0 +1,476 @@
+---
+title: Customization
+description: Customize Glide Browser appearance and behavior
+---
+
+# Customization
+
+Glide provides extensive customization options through TypeScript configuration. This guide covers appearance, behavior, and preference management.
+
+## CSS Customization
+
+### Styles API
+
+Add custom CSS to the browser UI using `glide.styles`:
+
+```typescript
+glide.styles.add(css`
+  #TabsToolbar {
+    visibility: collapse !important;
+  }
+`);
+```
+
+The `css` template tag is optional but provides syntax highlighting in editors.
+
+### Managing Styles
+
+Add styles with an ID for later removal:
+
+```typescript
+glide.styles.add(css`
+  #nav-bar {
+    background: #1a1a1a !important;
+  }
+`, { id: 'dark-navbar' });
+
+// Later, remove the styles
+glide.styles.remove('dark-navbar');
+```
+
+Check if styles exist:
+
+```typescript
+if (glide.styles.has('dark-navbar')) {
+  console.log('Dark navbar is active');
+}
+```
+
+Retrieve registered styles:
+
+```typescript
+const css = glide.styles.get('dark-navbar');
+console.log(css);
+```
+
+### Overwriting Styles
+
+By default, adding styles with a duplicate ID throws an error:
+
+```typescript
+glide.styles.add(css`...`, { id: 'theme' });
+
+// This will throw an error
+glide.styles.add(css`...`, { id: 'theme' });
+```
+
+Use the `overwrite` option to replace existing styles:
+
+```typescript
+glide.styles.add(css`
+  /* New styles */
+`, { id: 'theme', overwrite: true });
+```
+
+### Common Customizations
+
+#### Hide Tab Bar
+
+```typescript
+glide.styles.add(css`
+  #TabsToolbar {
+    visibility: collapse !important;
+  }
+`);
+```
+
+#### Auto-hide Tab Bar
+
+```typescript
+glide.o.native_tabs = "autohide";
+
+glide.styles.add(css`
+  :root {
+    --uc-tab-collapsed-width: 2px;
+  }
+`);
+```
+
+#### Custom Colors
+
+```typescript
+glide.styles.add(css`
+  :root {
+    --toolbar-bgcolor: #2d2d2d !important;
+    --toolbar-color: #ffffff !important;
+  }
+  
+  #nav-bar {
+    background-color: var(--toolbar-bgcolor) !important;
+  }
+`);
+```
+
+#### Focus Indicators
+
+```typescript
+glide.styles.add(css`
+  :focus-visible {
+    outline: 2px solid #0066cc !important;
+    outline-offset: 2px !important;
+  }
+`);
+```
+
+## Behavior Options
+
+### Global Options
+
+Configure global behavior with `glide.o`:
+
+```typescript
+// Mapping timeout for insert mode
+glide.o.mapping_timeout = 200; // milliseconds
+
+// Which-key popup delay
+glide.o.which_key_delay = 300; // milliseconds
+
+// Yank highlight settings
+glide.o.yank_highlight = "#ff6b35";
+glide.o.yank_highlight_time = 150; // milliseconds
+
+// Jumplist configuration
+glide.o.jumplist_max_entries = 100;
+
+// Mode switching on focus
+glide.o.switch_mode_on_focus = true;
+
+// Scroll implementation
+glide.o.scroll_implementation = "keys"; // or "legacy"
+
+// Native tabs behavior
+glide.o.native_tabs = "show"; // "hide" | "autohide"
+
+// New tab URL
+glide.o.newtab_url = "about:newtab";
+```
+
+### Buffer-Specific Options
+
+Set options for the current buffer only:
+
+```typescript
+glide.autocmds.create("UrlEnter", { hostname: "example.com" }, () => {
+  glide.bo.mapping_timeout = 500; // Only for this buffer
+});
+```
+
+Get option value (buffer-specific or global):
+
+```typescript
+const timeout = glide.options.get("mapping_timeout");
+```
+
+### Custom Options
+
+Define your own options with type safety:
+
+```typescript
+declare global {
+  interface GlideOptions {
+    my_custom_option?: boolean;
+    theme_variant?: "light" | "dark";
+  }
+}
+
+glide.o.my_custom_option = true;
+glide.o.theme_variant = "dark";
+```
+
+## Preferences (about:config)
+
+Manage Firefox preferences from your config:
+
+```typescript
+// Set preferences
+glide.prefs.set("browser.startup.homepage", "https://example.com");
+glide.prefs.set("privacy.resistFingerprinting", true);
+glide.prefs.set("browser.tabs.loadInBackground", false);
+
+// Get preference values
+const homepage = glide.prefs.get("browser.startup.homepage");
+
+// Reset to default
+glide.prefs.clear("browser.startup.homepage");
+```
+
+<Warning>
+Preferences should be set at the top level of your config. Setting them in callbacks may not apply correctly. Some preferences require a restart to take effect.
+</Warning>
+
+### Buffer-Specific Preferences
+
+Set preferences for specific buffers:
+
+```typescript
+glide.autocmds.create("UrlEnter", { hostname: "example.com" }, () => {
+  glide.buf.prefs.set("privacy.resistFingerprinting", false);
+  // Automatically reset when navigating away
+});
+```
+
+### Scoped Preferences
+
+Temporarily set preferences using the `using` keyword:
+
+```typescript
+{
+  using prefs = glide.prefs.scoped();
+  prefs.set("foo", true);
+  // foo is true inside this block
+}
+// foo is reset to previous value outside the block
+```
+
+## Hints Customization
+
+### Hint Appearance
+
+```typescript
+// Font size
+glide.o.hint_size = "11px";
+
+// Character set for labels
+glide.o.hint_chars = "hjklasdfgyuiopqwertnmzxcvb";
+```
+
+### Label Generator
+
+Customize hint label generation:
+
+```typescript
+// Use numeric labels
+glide.o.hint_label_generator = glide.hints.label_generators.numeric;
+
+// Custom generator
+glide.o.hint_label_generator = ({ hints }) => {
+  return Array.from({ length: hints.length }, (_, i) => String(i + 1));
+};
+```
+
+### Page-Specific Patterns
+
+Configure next/previous page detection:
+
+```typescript
+glide.o.go_next_patterns = [
+  "next", "more", "newer", ">", "›", "→", "»", "≫", ">>"
+];
+
+glide.o.go_previous_patterns = [
+  "prev", "previous", "back", "older", "<", "‹", "←", "«", "≪", "<<"
+];
+```
+
+## Keyboard Layout
+
+### Physical Layout Support
+
+Use physical key codes for consistent mappings across keyboard layouts:
+
+```typescript
+glide.o.keyboard_layout = "qwerty";
+glide.o.keymaps_use_physical_layout = "force";
+```
+
+Options for `keymaps_use_physical_layout`:
+- `"never"` - Always use `event.key` (default for non-macOS)
+- `"force"` - Always use `event.code`
+- `"for_macos_option_modifier"` - Use `event.code` only with Option key on macOS
+
+### Custom Keyboard Layouts
+
+Define your own keyboard layout:
+
+```typescript
+declare global {
+  interface GlideKeyboardLayouts {
+    dvorak: GlideKeyboardLayout;
+  }
+}
+
+glide.o.keyboard_layouts.dvorak = {
+  Minus: ["[", "{"],
+  Equal: ["]", "}"],
+  // ... more mappings
+};
+
+glide.o.keyboard_layout = "dvorak";
+```
+
+## Theme Customization
+
+### Browser Theme
+
+Change the browser theme using the WebExtensions API:
+
+```typescript
+glide.keymaps.set("normal", "<leader>td", async () => {
+  await browser.theme.update({
+    colors: {
+      frame: "#1a1a1a",
+      tab_background_text: "#ffffff",
+      toolbar: "#2d2d2d",
+      toolbar_text: "#ffffff",
+    }
+  });
+});
+```
+
+Reset theme:
+
+```typescript
+await browser.theme.reset();
+```
+
+## Global Variables
+
+Store custom data in `glide.g` with type safety:
+
+```typescript
+declare global {
+  interface GlideGlobals {
+    my_data?: string[];
+    theme_mode?: "light" | "dark";
+  }
+}
+
+glide.g.my_data = ["foo", "bar"];
+glide.g.theme_mode = "dark";
+```
+
+### Leader Key
+
+Configure the leader key:
+
+```typescript
+glide.g.mapleader = "<Space>"; // default
+```
+
+Use in mappings:
+
+```typescript
+glide.keymaps.set("normal", "<leader>r", "config_reload");
+```
+
+## Site-Specific Customization
+
+Apply customizations for specific websites:
+
+```typescript
+glide.autocmds.create("UrlEnter", { hostname: "github.com" }, () => {
+  // Custom styles for GitHub
+  glide.styles.add(css`
+    .Header {
+      background: #1a1a1a !important;
+    }
+  `, { id: 'github-dark' });
+  
+  // Custom keymaps
+  glide.buf.keymaps.set("normal", "<leader>gi", async () => {
+    const url = glide.ctx.url;
+    const parts = url.pathname.split("/").filter(Boolean);
+    url.pathname = `/${parts[0]}/${parts[1]}/issues`;
+    await browser.tabs.update({ url: url.toString() });
+  });
+  
+  // Cleanup on navigation away
+  return () => {
+    glide.styles.remove('github-dark');
+  };
+});
+```
+
+## Advanced Patterns
+
+### Dynamic Themes
+
+Switch between themes:
+
+```typescript
+declare global {
+  interface GlideGlobals {
+    current_theme?: "light" | "dark";
+  }
+}
+
+function apply_theme(theme: "light" | "dark") {
+  glide.g.current_theme = theme;
+  
+  if (theme === "dark") {
+    glide.styles.add(css`
+      :root {
+        --toolbar-bgcolor: #1a1a1a !important;
+        --toolbar-color: #ffffff !important;
+      }
+    `, { id: 'theme', overwrite: true });
+  } else {
+    glide.styles.add(css`
+      :root {
+        --toolbar-bgcolor: #f5f5f5 !important;
+        --toolbar-color: #000000 !important;
+      }
+    `, { id: 'theme', overwrite: true });
+  }
+}
+
+glide.keymaps.set("normal", "<leader>tt", () => {
+  const current = glide.g.current_theme ?? "light";
+  apply_theme(current === "light" ? "dark" : "light");
+});
+
+apply_theme("dark");
+```
+
+### Conditional Configuration
+
+Apply settings based on OS:
+
+```typescript
+if (glide.ctx.os === "macosx") {
+  glide.o.keymaps_use_physical_layout = "for_macos_option_modifier";
+} else {
+  glide.o.keymaps_use_physical_layout = "force";
+}
+```
+
+### Loading External Stylesheets
+
+```typescript
+glide.autocmds.create("ConfigLoaded", async () => {
+  try {
+    const css_content = await glide.fs.read("custom.css", "utf8");
+    glide.styles.add(css_content, { id: 'external-styles' });
+  } catch (err) {
+    console.warn("Could not load custom.css:", err);
+  }
+});
+```
+
+## Browser Toolbox Inspection
+
+<Tip>
+Use the [Browser Toolbox](https://firefox-source-docs.mozilla.org/devtools-user/browser_toolbox/index.html) to inspect the browser UI and identify element selectors for styling.
+</Tip>
+
+## Performance Considerations
+
+<Warning>
+Excessive CSS styles can impact browser performance. Remove unused styles with `glide.styles.remove()` when they're no longer needed.
+</Warning>
+
+## See Also
+
+- [Configuration](/concepts/configuration) - Config file basics
+- [Autocmds](/guides/autocmds) - Event-driven customization
+- [Advanced Config](/guides/advanced-config) - Include system and modules

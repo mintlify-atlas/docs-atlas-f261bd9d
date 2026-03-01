@@ -1,0 +1,478 @@
+---
+title: "glide.styles"
+description: "API for adding custom CSS to the browser UI"
+---
+
+## Overview
+
+The styles API allows you to inject custom CSS into the browser's user interface. This enables customization of the browser chrome, tabs, toolbar, and other UI elements that are not part of web content.
+
+<Note>
+  These styles apply to the browser UI itself (chrome), not to web page content. To style web pages, use content scripts or userContent.css.
+</Note>
+
+## Methods
+
+### add()
+
+Add custom CSS styles to the browser UI.
+
+```typescript
+glide.styles.add(styles: string, opts?: { id: string; overwrite?: boolean }): void
+```
+
+<ParamField path="styles" type="string" required>
+  CSS string to inject into the browser UI. Use the `css` template literal for syntax highlighting.
+  
+  ```typescript
+  glide.styles.add(css`
+    #TabsToolbar {
+      visibility: collapse !important;
+    }
+  `);
+  ```
+</ParamField>
+
+<ParamField path="opts" type="object" optional>
+  Options for managing the style element
+  
+  <Expandable title="properties">
+    <ParamField path="id" type="string" optional>
+      Unique identifier for this style element. Required if you want to remove or update the styles later.
+      
+      ```typescript
+      glide.styles.add(css`...`, { id: 'custom-tabs' });
+      ```
+    </ParamField>
+    
+    <ParamField path="overwrite" type="boolean" default="false">
+      If `true`, replaces existing styles with the same ID. If `false`, throws an error when attempting to add styles with a duplicate ID.
+      
+      ```typescript
+      glide.styles.add(css`...`, { 
+        id: 'theme',
+        overwrite: true 
+      });
+      ```
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+#### Examples
+
+```typescript
+// Hide the tab bar
+glide.styles.add(css`
+  #TabsToolbar {
+    visibility: collapse !important;
+  }
+`, { id: 'hide-tabs' });
+
+// Custom toolbar colors
+glide.styles.add(css`
+  #nav-bar {
+    background-color: #1a1a1a !important;
+  }
+  
+  #urlbar {
+    background-color: #2a2a2a !important;
+    color: #ffffff !important;
+  }
+`, { id: 'dark-toolbar' });
+
+// Compact tab spacing
+glide.styles.add(css`
+  .tabbrowser-tab {
+    min-width: 100px !important;
+  }
+  
+  .tab-content {
+    padding: 0 6px !important;
+  }
+`);
+
+// Custom scrollbar
+glide.styles.add(css`
+  scrollbar {
+    appearance: none !important;
+    width: 12px !important;
+  }
+  
+  scrollbar-thumb {
+    background-color: rgba(255, 255, 255, 0.3) !important;
+    border-radius: 6px !important;
+  }
+`, { id: 'custom-scrollbar' });
+
+// Conditional styles with overwrite
+if (isDarkMode) {
+  glide.styles.add(css`
+    :root {
+      --toolbar-bgcolor: #1a1a1a !important;
+      --toolbar-color: #ffffff !important;
+    }
+  `, { id: 'theme', overwrite: true });
+} else {
+  glide.styles.add(css`
+    :root {
+      --toolbar-bgcolor: #f0f0f0 !important;
+      --toolbar-color: #000000 !important;
+    }
+  `, { id: 'theme', overwrite: true });
+}
+```
+
+### remove()
+
+Remove custom CSS that has previously been added.
+
+```typescript
+glide.styles.remove(id: string): boolean
+```
+
+<ParamField path="id" type="string" required>
+  The unique identifier that was used when adding the styles.
+</ParamField>
+
+<ResponseField name="return" type="boolean">
+  Returns `true` if styles with the given ID were found and removed, `false` if no styles with that ID exist.
+</ResponseField>
+
+#### Examples
+
+```typescript
+// Add and remove styles
+glide.styles.add(css`#TabsToolbar { visibility: collapse; }`, { 
+  id: 'hide-tabs' 
+});
+
+if (glide.styles.remove('hide-tabs')) {
+  console.log('Tabs are now visible');
+}
+
+// Toggle styles
+function toggleTabs() {
+  if (glide.styles.has('hide-tabs')) {
+    glide.styles.remove('hide-tabs');
+  } else {
+    glide.styles.add(css`
+      #TabsToolbar { visibility: collapse !important; }
+    `, { id: 'hide-tabs' });
+  }
+}
+```
+
+### has()
+
+Check whether custom CSS has been registered with the given ID.
+
+```typescript
+glide.styles.has(id: string): boolean
+```
+
+<ParamField path="id" type="string" required>
+  The unique identifier to check.
+</ParamField>
+
+<ResponseField name="return" type="boolean">
+  Returns `true` if styles with the given ID exist, `false` otherwise.
+</ResponseField>
+
+#### Examples
+
+```typescript
+if (glide.styles.has('dark-theme')) {
+  console.log('Dark theme is active');
+}
+
+// Conditional application
+if (!glide.styles.has('custom-toolbar')) {
+  glide.styles.add(css`...`, { id: 'custom-toolbar' });
+}
+```
+
+### get()
+
+Get the CSS string for styles registered with the given ID.
+
+```typescript
+glide.styles.get(id: string): string | undefined
+```
+
+<ParamField path="id" type="string" required>
+  The unique identifier of the styles to retrieve.
+</ParamField>
+
+<ResponseField name="return" type="string | undefined">
+  Returns the CSS string if styles with the given ID exist, `undefined` otherwise.
+</ResponseField>
+
+#### Examples
+
+```typescript
+const currentStyles = glide.styles.get('dark-theme');
+
+if (currentStyles) {
+  console.log('Current theme styles:', currentStyles);
+}
+
+// Modify existing styles
+const existing = glide.styles.get('theme');
+if (existing) {
+  const modified = existing + '\n.new-rule { color: red; }';
+  glide.styles.add(modified, { id: 'theme', overwrite: true });
+}
+```
+
+## Common Patterns
+
+### Hide Native Tab Bar
+
+```typescript
+// Completely hide the tab bar
+glide.styles.add(css`
+  #TabsToolbar {
+    visibility: collapse !important;
+  }
+`, { id: 'hide-tabs' });
+
+// Or use the built-in option
+glide.o.native_tabs = "hide";
+```
+
+### Auto-hide Tab Bar
+
+```typescript
+// Show tabs on hover
+glide.styles.add(css`
+  #TabsToolbar {
+    height: 2px !important;
+    overflow: hidden !important;
+    transition: height 0.2s ease !important;
+  }
+  
+  #TabsToolbar:hover {
+    height: var(--tab-min-height) !important;
+  }
+`, { id: 'autohide-tabs' });
+
+// Or use the built-in option
+glide.o.native_tabs = "autohide";
+```
+
+### Vertical Tabs Styling
+
+```typescript
+glide.styles.add(css`
+  /* Assuming vertical tabs are enabled */
+  :root {
+    --uc-tab-collapsed-width: 40px;
+  }
+  
+  #TabsToolbar {
+    width: var(--uc-tab-collapsed-width) !important;
+  }
+  
+  #TabsToolbar:hover {
+    width: 200px !important;
+  }
+  
+  .tabbrowser-tab {
+    max-width: none !important;
+  }
+`, { id: 'vertical-tabs' });
+```
+
+### Custom Theme Colors
+
+```typescript
+function applyTheme(colors: {
+  background: string;
+  foreground: string;
+  accent: string;
+}) {
+  glide.styles.add(css`
+    :root {
+      --toolbar-bgcolor: ${colors.background} !important;
+      --toolbar-color: ${colors.foreground} !important;
+      --toolbarbutton-hover-background: ${colors.accent} !important;
+    }
+    
+    #nav-bar {
+      background-color: var(--toolbar-bgcolor) !important;
+    }
+    
+    #urlbar {
+      background-color: ${colors.background} !important;
+      color: ${colors.foreground} !important;
+    }
+  `, { id: 'custom-theme', overwrite: true });
+}
+
+applyTheme({
+  background: '#1e1e1e',
+  foreground: '#d4d4d4',
+  accent: '#0e639c'
+});
+```
+
+### Compact UI
+
+```typescript
+glide.styles.add(css`
+  :root {
+    --tab-min-height: 32px !important;
+    --toolbarbutton-inner-padding: 6px !important;
+  }
+  
+  #nav-bar {
+    padding: 2px !important;
+  }
+  
+  .tabbrowser-tab {
+    min-width: 80px !important;
+  }
+  
+  .tab-content {
+    padding: 0 4px !important;
+  }
+  
+  toolbarbutton {
+    padding: 4px !important;
+  }
+`, { id: 'compact-ui' });
+```
+
+### CSS Variables for Dynamic Theming
+
+```typescript
+// Define CSS variables
+glide.styles.add(css`
+  :root {
+    --custom-accent: #007acc;
+    --custom-bg: #1e1e1e;
+    --custom-fg: #d4d4d4;
+  }
+`, { id: 'theme-vars' });
+
+// Use variables in other styles
+glide.styles.add(css`
+  #urlbar {
+    background-color: var(--custom-bg) !important;
+    color: var(--custom-fg) !important;
+  }
+  
+  #urlbar:focus {
+    border-color: var(--custom-accent) !important;
+  }
+`, { id: 'theme-application' });
+
+// Update variables dynamically
+function updateAccentColor(color: string) {
+  glide.styles.add(css`
+    :root {
+      --custom-accent: ${color};
+    }
+  `, { id: 'theme-vars', overwrite: true });
+}
+```
+
+## Integration with Options
+
+The `glide.o.native_tabs` option uses `glide.styles` internally:
+
+```typescript
+// These are equivalent:
+glide.o.native_tabs = "hide";
+
+glide.styles.add(CSS.hide_tabs_toolbar_v2, { 
+  id: '$glide.o.native_tabs' 
+});
+```
+
+## Important Selectors
+
+### Common Browser UI Elements
+
+```css
+/* Tab bar */
+#TabsToolbar { }
+
+/* Navigation bar (contains URL bar) */
+#nav-bar { }
+
+/* URL bar */
+#urlbar { }
+
+/* Individual tabs */
+.tabbrowser-tab { }
+
+/* Tab content */
+.tab-content { }
+
+/* Toolbar buttons */
+toolbarbutton { }
+
+/* Sidebar */
+#sidebar-box { }
+
+/* Bookmarks toolbar */
+#PersonalToolbar { }
+
+/* Status panel (link preview) */
+#statuspanel { }
+```
+
+### CSS Custom Properties
+
+```css
+/* Tab dimensions */
+--tab-min-height
+--tab-min-width
+--uc-tab-collapsed-width  /* For vertical tabs */
+
+/* Toolbar colors */
+--toolbar-bgcolor
+--toolbar-color
+--toolbarbutton-hover-background
+
+/* URL bar */
+--urlbar-background
+--urlbar-foreground
+```
+
+## Tips
+
+- Always use `!important` to ensure your styles override default browser styles
+- Use the `css` template literal for syntax highlighting in your editor
+- Assign IDs to styles you might want to remove or update later
+- Test styles with the browser's developer tools (F12) first
+- Use CSS custom properties for values you might want to change dynamically
+- Inspect browser UI elements with the Browser Toolbox (Ctrl+Alt+Shift+I)
+
+## Debugging
+
+```typescript
+// List all registered style IDs
+const styleIds = ['theme', 'tabs', 'toolbar', 'custom'];
+for (const id of styleIds) {
+  if (glide.styles.has(id)) {
+    console.log(`Style '${id}' is registered`);
+    console.log(glide.styles.get(id));
+  }
+}
+
+// Remove all custom styles
+function clearAllStyles() {
+  const knownIds = ['theme', 'tabs', 'toolbar', 'custom'];
+  for (const id of knownIds) {
+    glide.styles.remove(id);
+  }
+}
+```
+
+## See Also
+
+- [glide.o.native_tabs](/api/options#native_tabs) - Built-in option for tab bar visibility
+- [glide.prefs](/api/prefs) - Configure Firefox preferences
+- [Firefox CSS Hacks](https://mrotherguy.github.io/firefox-csshacks/) - Collection of useful browser UI customizations

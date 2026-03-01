@@ -1,0 +1,203 @@
+---
+title: Modal Editing
+description: Understanding Glide's modal editing system inspired by Vim
+---
+
+Glide Browser features a powerful modal editing system inspired by Vim, allowing you to navigate and interact with web pages using keyboard-driven workflows. The browser operates in different modes, each optimized for specific tasks.
+
+## Available Modes
+
+Glide supports six distinct modes:
+
+<CardGroup cols={2}>
+  <Card title="Normal Mode" icon="keyboard">
+    The default mode for navigation and issuing commands. Most keybindings are available in this mode.
+  </Card>
+  <Card title="Insert Mode" icon="i-cursor">
+    For interacting with form inputs and editable elements. Similar to how a traditional browser works.
+  </Card>
+  <Card title="Visual Mode" icon="highlighter">
+    For selecting and manipulating text within editable elements.
+  </Card>
+  <Card title="Operator-Pending Mode" icon="clock">
+    A temporary mode activated when waiting for a motion after an operator (like `d` for delete).
+  </Card>
+  <Card title="Command Mode" icon="terminal">
+    For executing ex commands through the command line interface.
+  </Card>
+  <Card title="Ignore Mode" icon="ban">
+    Passes all key inputs directly to the web page, bypassing Glide's keybindings.
+  </Card>
+</CardGroup>
+
+## Switching Between Modes
+
+You can switch modes using the `mode_change` ex command or the built-in keybindings:
+
+### From Normal Mode
+
+```typescript
+// Enter insert mode
+glide.keymaps.set("normal", "i", "mode_change insert --automove=left");
+glide.keymaps.set("normal", "a", "mode_change insert");
+glide.keymaps.set("normal", "A", "mode_change insert --automove=endline");
+
+// Enter visual mode
+glide.keymaps.set("normal", "v", "motion v");
+
+// Enter ignore mode
+glide.keymaps.set(["normal", "insert", "visual"], "<S-Esc>", "mode_change ignore");
+```
+
+### Returning to Normal Mode
+
+```typescript
+// From insert, visual, or operator-pending mode
+glide.keymaps.set(["insert", "visual", "op-pending"], "<Esc>", "mode_change normal");
+glide.keymaps.set(["insert", "visual", "op-pending"], "<C-[>", "mode_change normal");
+
+// From ignore mode
+glide.keymaps.set("ignore", "<S-Esc>", "mode_change normal");
+```
+
+## Mode-Specific Behavior
+
+### Normal Mode
+
+Normal mode is optimized for navigation and issuing commands:
+
+- **Navigation motions**: `h`, `j`, `k`, `l` for character-level movement
+- **Word motions**: `w`, `W`, `e`, `b`, `B` for word-based navigation
+- **Line motions**: `0`, `^`, `$` for line navigation
+- **Scrolling**: `gg`, `G`, `<C-d>`, `<C-u>` for page scrolling
+- **Operators**: `d`, `c`, `r` for editing operations
+
+### Insert Mode
+
+Insert mode allows direct interaction with input fields and editable content:
+
+- Most keybindings are disabled to allow normal text entry
+- Tab navigation and history controls remain active
+- Exit with `<Esc>` or `<C-[>`
+
+### Visual Mode
+
+Visual mode enables text selection and manipulation:
+
+```typescript
+// Visual mode motions
+glide.keymaps.set("visual", "h", "motion vh");
+glide.keymaps.set("visual", "l", "motion vl");
+glide.keymaps.set("visual", "d", "motion vd");
+glide.keymaps.set("visual", "c", "motion vc");
+glide.keymaps.set("visual", "y", "visual_selection_copy");
+```
+
+### Operator-Pending Mode
+
+This mode is automatically entered when you press an operator key (like `d` or `c`):
+
+```typescript
+// Define operators
+glide.keymaps.set("normal", "d", "mode_change op-pending --operator=d");
+glide.keymaps.set("normal", "c", "mode_change op-pending --operator=c");
+
+// Execute motion after operator
+glide.keymaps.set("op-pending", "w", "execute_motion"); // delete word: dw
+glide.keymaps.set("op-pending", "$", "execute_motion"); // delete to end: d$
+```
+
+## Mode Change Options
+
+The `mode_change` command supports several options:
+
+### Auto-move Cursor
+
+When entering insert mode, you can automatically move the cursor:
+
+```typescript
+// Move cursor left before entering insert (like 'i' in Vim)
+glide.excmds.execute("mode_change insert --automove=left");
+
+// Move cursor to end of line (like 'A' in Vim)
+glide.excmds.execute("mode_change insert --automove=endline");
+```
+
+### Operator Mode
+
+Specify which operator to use in operator-pending mode:
+
+```typescript
+// Delete operator
+glide.excmds.execute("mode_change op-pending --operator=d");
+
+// Change operator
+glide.excmds.execute("mode_change op-pending --operator=c");
+
+// Replace operator
+glide.excmds.execute("mode_change op-pending --operator=r");
+```
+
+## Monitoring Mode Changes
+
+You can react to mode changes using autocmds:
+
+```typescript
+// Listen for any mode change
+glide.autocmds.create("ModeChanged", "*", ({ old_mode, new_mode }) => {
+  console.log(`Mode changed from ${old_mode} to ${new_mode}`);
+});
+
+// Listen for entering visual mode
+glide.autocmds.create("ModeChanged", "*:visual", ({ new_mode }) => {
+  console.log("Entered visual mode");
+});
+
+// Listen for leaving insert mode
+glide.autocmds.create("ModeChanged", "insert:*", ({ old_mode, new_mode }) => {
+  console.log(`Left insert mode, now in ${new_mode}`);
+});
+```
+
+## Current Mode
+
+You can check the current mode in your config:
+
+```typescript
+// Access current mode
+const currentMode = glide.ctx.mode;
+
+// Use in conditional logic
+if (glide.ctx.mode === "normal") {
+  // Do something only in normal mode
+}
+```
+
+## Custom Mode-Specific Keybindings
+
+Define keybindings that work across multiple modes:
+
+```typescript
+// Tab navigation works in both normal and insert modes
+glide.keymaps.set(["normal", "insert"], "<C-j>", "tab_next");
+glide.keymaps.set(["normal", "insert"], "<C-k>", "tab_prev");
+
+// History navigation
+if (glide.ctx.os === "macosx") {
+  glide.keymaps.set(["normal", "insert"], "<C-h>", "back");
+  glide.keymaps.set(["normal", "insert"], "<C-l>", "forward");
+} else {
+  glide.keymaps.set(["normal", "insert"], "<A-h>", "back");
+  glide.keymaps.set(["normal", "insert"], "<A-l>", "forward");
+}
+```
+
+## Related Commands
+
+- `:mode_change <mode>` - Switch to the specified mode
+- `:blur` - Blur the active element and return to normal mode
+- `:focusinput last` - Focus the last input element on the page
+
+<Info>
+  The mode system is defined in `browser-excmds-registry.mts:47-56` with available modes: normal, insert, visual, op-pending, ignore, command, and hint.
+</Info>

@@ -1,0 +1,364 @@
+---
+title: "glide.commandline"
+description: "API for the command line interface with completion and custom options"
+---
+
+## Overview
+
+The command line provides a fuzzy-searchable interface for executing commands and selecting options. By default it shows all available excmds, but you can customize it to show your own options.
+
+## Methods
+
+### show()
+
+Show the command line UI with optional custom options.
+
+```typescript
+glide.commandline.show(opts?: CommandLineShowOpts): Promise<void>
+```
+
+<ParamField path="opts" type="object" optional>
+  Options for configuring the command line display
+  
+  <Expandable title="properties">
+    <ParamField path="input" type="string" optional>
+      Pre-fill the command line input field with this text.
+      
+      ```typescript
+      // Open with prefilled text
+      glide.commandline.show({ input: "tab " });
+      ```
+    </ParamField>
+    
+    <ParamField path="title" type="string" optional>
+      Text shown at the top of the command line. Only used when `options` are provided.
+      
+      Defaults to `"options"` if `options` is provided but `title` is not.
+      
+      ```typescript
+      glide.commandline.show({
+        title: "Select a bookmark",
+        options: bookmarks.map(b => ({ /* ... */ }))
+      });
+      ```
+    </ParamField>
+    
+    <ParamField path="options" type="CommandLineCustomOption[]" optional>
+      Replace the default command line options with custom options.
+      
+      ```typescript
+      glide.commandline.show({
+        options: [
+          {
+            label: "Option 1",
+            description: "Does something",
+            execute({ input }) {
+              console.log('Selected option 1 with input:', input);
+            }
+          },
+          {
+            label: "Option 2",
+            execute() {
+              console.log('Selected option 2');
+            }
+          }
+        ]
+      });
+      ```
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+#### Examples
+
+```typescript
+// Show default command line (all excmds)
+glide.commandline.show();
+
+// Show with prefilled text
+glide.commandline.show({ input: "tab github" });
+
+// Custom options - bookmark selector
+const bookmarks = [
+  { title: "GitHub", url: "https://github.com" },
+  { title: "MDN", url: "https://developer.mozilla.org" }
+];
+
+glide.commandline.show({
+  title: "Open Bookmark",
+  options: bookmarks.map(bookmark => ({
+    label: bookmark.title,
+    description: bookmark.url,
+    execute() {
+      browser.tabs.create({ url: bookmark.url });
+    }
+  }))
+});
+
+// Custom rendering with DOM elements
+glide.commandline.show({
+  title: "Select Color",
+  options: colors.map(color => ({
+    label: color.name,
+    render() {
+      return DOM.create_element("div", {
+        style: {
+          display: "flex",
+          alignItems: "center",
+          gap: "12px"
+        },
+        children: [
+          DOM.create_element("div", {
+            style: {
+              width: "20px",
+              height: "20px",
+              backgroundColor: color.hex,
+              borderRadius: "4px"
+            }
+          }),
+          color.name
+        ]
+      });
+    },
+    execute() {
+      applyThemeColor(color);
+    }
+  }))
+});
+
+// Custom fuzzy matching
+glide.commandline.show({
+  options: items.map(item => ({
+    label: item.name,
+    matches({ input }) {
+      // Custom fuzzy match implementation
+      return fuzzyMatch(input, item.searchable_fields);
+    },
+    execute() {
+      selectItem(item);
+    }
+  }))
+});
+```
+
+### close()
+
+Close the command line UI.
+
+```typescript
+glide.commandline.close(): Promise<boolean>
+```
+
+<ResponseField name="return" type="boolean">
+  Returns `true` if the command line was open and was closed, `false` if it was already closed.
+</ResponseField>
+
+#### Examples
+
+```typescript
+// Close the command line
+const wasClosed = await glide.commandline.close();
+
+if (wasClosed) {
+  console.log('Command line was closed');
+} else {
+  console.log('Command line was already closed');
+}
+```
+
+### is_active()
+
+Check if the command line is currently open and focused.
+
+```typescript
+glide.commandline.is_active(): boolean
+```
+
+<ResponseField name="return" type="boolean">
+  Returns `true` if the command line is visible and focused, `false` otherwise.
+</ResponseField>
+
+#### Examples
+
+```typescript
+if (glide.commandline.is_active()) {
+  console.log('Command line is open');
+}
+
+// Conditional behavior based on command line state
+glide.keymaps.set('normal', '<Esc>', () => {
+  if (glide.commandline.is_active()) {
+    glide.commandline.close();
+  } else {
+    // Handle other escape behavior
+  }
+});
+```
+
+## Types
+
+### CommandLineShowOpts
+
+```typescript
+interface CommandLineShowOpts {
+  input?: string;
+  title?: string;
+  options?: CommandLineCustomOption[];
+}
+```
+
+### CommandLineCustomOption
+
+```typescript
+interface CommandLineCustomOption {
+  /** Primary text shown for this option */
+  label: string;
+  
+  /** Optional secondary text rendered next to the label */
+  description?: string;
+  
+  /**
+   * Optional callback used to display this option in the UI.
+   * 
+   * If provided, this replaces the default rendering.
+   */
+  render?(): HTMLElement;
+  
+  /**
+   * Optional callback to determine if this option matches the input.
+   * 
+   * Return null to use the default matcher.
+   */
+  matches?(props: { input: string }): boolean | null;
+  
+  /**
+   * Callback invoked when <enter> is pressed while this option is focused.
+   */
+  execute(props: { input: string }): void;
+}
+```
+
+## Default Completion Sources
+
+When opened without custom options, the command line provides completion for:
+
+### Ex Commands
+
+All available excmds with:
+- Command name
+- Description
+- Associated keybinding (if any)
+- Fuzzy search by command name or description
+
+### Tabs
+
+When input starts with `tab `, shows all open tabs with:
+- Tab icon and title
+- URL
+- Status indicators (active: `*`, playing: 🔊, muted: `M`, pinned: `P`, unloaded: `U`)
+- Fuzzy search by title or URL
+- Delete with `<C-d>` to close tab
+
+## Autocmds
+
+The command line triggers the `CommandLineExit` autocmd when closed:
+
+```typescript
+glide.autocmds.create("CommandLineExit", () => {
+  console.log('Command line was closed');
+});
+```
+
+## Examples
+
+### Quick Tab Switcher
+
+```typescript
+glide.keymaps.set('normal', '<leader>t', async () => {
+  const tabs = await glide.tabs.query({ currentWindow: true });
+  
+  glide.commandline.show({
+    title: "Switch Tab",
+    options: tabs.map(tab => ({
+      label: tab.title || "Untitled",
+      description: tab.url,
+      execute() {
+        browser.tabs.update(tab.id, { active: true });
+      }
+    }))
+  });
+});
+```
+
+### Command Palette
+
+```typescript
+const commands = [
+  {
+    name: "Toggle Dark Mode",
+    action: () => toggleDarkMode()
+  },
+  {
+    name: "Clear Cache",
+    action: () => clearBrowserCache()
+  },
+  {
+    name: "Export Settings",
+    action: () => exportSettings()
+  }
+];
+
+glide.keymaps.set('normal', '<C-p>', () => {
+  glide.commandline.show({
+    title: "Command Palette",
+    options: commands.map(cmd => ({
+      label: cmd.name,
+      execute() {
+        cmd.action();
+      }
+    }))
+  });
+});
+```
+
+### File Browser
+
+```typescript
+glide.keymaps.set('normal', '<leader>f', async () => {
+  const files = await listFiles(currentDirectory);
+  
+  glide.commandline.show({
+    title: "Open File",
+    input: currentDirectory,
+    options: files.map(file => ({
+      label: file.name,
+      description: file.path,
+      render() {
+        return DOM.create_element("div", {
+          style: { display: "flex", gap: "8px", alignItems: "center" },
+          children: [
+            DOM.create_element("span", {
+              textContent: file.isDirectory ? "📁" : "📄"
+            }),
+            file.name
+          ]
+        });
+      },
+      execute() {
+        if (file.isDirectory) {
+          // Show files in subdirectory
+          listFiles(file.path);
+        } else {
+          openFile(file.path);
+        }
+      }
+    }))
+  });
+});
+```
+
+## See Also
+
+- [glide.excmds](/api/excmds) - Execute commands programmatically
+- [glide.keymaps](/api/keymaps) - Bind keys to open command line
+- [glide.autocmds](/api/autocmds) - React to command line events

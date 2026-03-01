@@ -1,0 +1,480 @@
+---
+title: Configuration System
+description: Learn how to configure Glide Browser with TypeScript
+---
+
+Glide uses a TypeScript-based configuration system that provides type safety, autocomplete, and powerful customization options. Your configuration lives in a `glide.ts` file that's loaded on startup.
+
+## Configuration File Location
+
+Glide searches for configuration files in multiple locations, in order of priority:
+
+<Steps>
+  <Step title="Current working directory">
+    `$(pwd)/.glide/glide.ts` - Useful for project-specific configurations
+  </Step>
+  
+  <Step title="Home directory">
+    `~/.glide/glide.ts` - Your personal configuration
+  </Step>
+  
+  <Step title="Profile directory">
+    `~/.mozilla/firefox/<profile>/glide/glide.ts` - Firefox profile-specific config
+  </Step>
+</Steps>
+
+<Info>
+  Glide uses the **first** config file it finds. If you have multiple, the more specific one (cwd) takes precedence.
+</Info>
+
+## Initializing Configuration
+
+Create a new configuration with the `:config_init` command:
+
+<Tabs>
+  <Tab title="Interactive">
+    Run the command without arguments to choose location:
+    
+    ```
+    :config_init
+    ```
+    
+    A dialog will let you select:
+    - Current working directory
+    - Home directory  
+    - Profile directory
+  </Tab>
+  
+  <Tab title="Specify Location">
+    Create config in a specific location:
+    
+    ```
+    :config_init --location=home
+    :config_init --location=cwd
+    :config_init --location=profile
+    ```
+  </Tab>
+</Tabs>
+
+This creates four files:
+
+1. `glide.ts` - Your configuration file
+2. `glide.d.ts` - TypeScript type definitions
+3. `tsconfig.json` - TypeScript compiler config
+4. `package.json` - Dependencies (includes TypeScript)
+
+## Basic Configuration
+
+The default `glide.ts` file is minimal:
+
+```typescript
+// Config docs:
+//   https://glide-browser.app/config
+//
+// API reference:
+//   https://glide-browser.app/api
+//
+// Default config files can be found here:
+//   https://github.com/glide-browser/glide/tree/main/src/glide/browser/base/content/plugins
+//
+// Most default keymappings are defined here:
+//   https://github.com/glide-browser/glide/blob/main/src/glide/browser/base/content/plugins/keymaps.mts
+//
+// Try typing `glide.` and see what you can do!
+```
+
+Source: `src/glide/browser/base/content/config-init.mts:92-109`
+
+## Configuration Structure
+
+The global `glide` object is available in your config:
+
+```typescript
+// Options (browser-wide settings)
+glide.o.mapping_timeout = 300;
+glide.o.hint_size = "14px";
+
+// Globals (variables like leader key)
+glide.g.mapleader = ",";
+
+// Keymaps
+glide.keymaps.set("normal", "<leader>r", "reload");
+
+// Autocmds (event handlers)
+glide.autocmds.create("UrlEnter", /github\.com/, () => {
+  console.log("Opened GitHub!");
+});
+
+// Styles (custom CSS)
+glide.styles.add(`#TabsToolbar { display: none; }`);
+
+// Preferences (Firefox about:config)
+glide.prefs.set("browser.tabs.closeWindowWithLastTab", false);
+```
+
+## TypeScript Configuration
+
+The generated `tsconfig.json` enables type checking:
+
+```json
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "exclude": ["node_modules"],
+  "compilerOptions": {
+    "lib": ["DOM", "DOM.Iterable", "DOM.AsyncIterable", "ESNext"],
+    "types": ["./glide.d.ts"],
+    "target": "esnext",
+    "module": "esnext",
+    "moduleDetection": "force",
+    "allowJs": true,
+    "noEmit": true,
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "skipLibCheck": true
+  }
+}
+```
+
+Source: `src/glide/browser/base/content/config-init.mts:112-148`
+
+<Tip>
+  Run `npm run tsc` in your config directory to check for type errors!
+</Tip>
+
+## Type Definitions
+
+The `glide.d.ts` file provides full autocomplete for the Glide API. It's automatically generated and includes:
+
+- All methods on the `glide` object
+- Option types and defaults
+- Command signatures
+- Event types for autocmds
+
+Your editor (VS Code, Neovim, etc.) will use these definitions for:
+- Autocomplete
+- Inline documentation
+- Type checking
+- Go-to-definition
+
+<Warning>
+  Don't edit `glide.d.ts` manually - it's regenerated when you reload your config.
+</Warning>
+
+## Reloading Configuration
+
+Reload your config after making changes:
+
+<Tabs>
+  <Tab title="Command">
+    Use the ex-command:
+    
+    ```
+    :config_reload
+    ```
+  </Tab>
+  
+  <Tab title="Keymap">
+    Create a keymap for quick reloading:
+    
+    ```typescript
+    glide.keymaps.set("normal", "<leader>cr", "config_reload");
+    ```
+  </Tab>
+  
+  <Tab title="Auto-reload">
+    Glide can watch your config file for changes (experimental):
+    
+    ```typescript
+    // This is set up automatically, no action needed
+    ```
+  </Tab>
+</Tabs>
+
+<Info>
+  When you reload, Glide cleans up old keymaps, styles, and autocmds before loading the new config.
+</Info>
+
+## Configuration Options
+
+Common options you can set with `glide.o`:
+
+### Hint Options
+
+```typescript
+// Hint label font size
+glide.o.hint_size = "12px";
+
+// Characters used in hint labels
+glide.o.hint_chars = "asdfjkl;";
+
+// Hint label generation algorithm
+glide.o.hint_label_generator = glide.hints.label_generators.numeric;
+```
+
+### Timing Options
+
+```typescript
+// How long to wait for next key in sequence (insert mode)
+glide.o.mapping_timeout = 300; // milliseconds
+
+// Delay before showing which-key popup
+glide.o.which_key_delay = 500;
+
+// How long to highlight yanked text
+glide.o.yank_highlight_time = 200;
+```
+
+### UI Options
+
+```typescript
+// Tab bar visibility
+glide.o.native_tabs = "hide";      // or "show" or "autohide"
+
+// New tab page URL
+glide.o.newtab_url = "about:blank";
+
+// Yank highlight color
+glide.o.yank_highlight = "#ff6b35";
+```
+
+### Behavior Options
+
+```typescript
+// Auto-switch to insert mode when focusing input
+glide.o.switch_mode_on_focus = true;
+
+// Max jumplist entries
+glide.o.jumplist_max_entries = 100;
+
+// Keyboard layout (affects key translation)
+glide.o.keyboard_layout = "qwerty"; // or "dvorak", "colemak", etc.
+```
+
+### Navigation Patterns
+
+```typescript
+// Patterns for "go to next page" link detection
+glide.o.go_next_patterns = [
+  "next", "more", "newer", ">", "›", "→", "»", "≫", ">>"
+];
+
+// Patterns for "go to previous page"
+glide.o.go_previous_patterns = [
+  "prev", "previous", "back", "older", "<", "‹", "←", "«", "≪", "<<"
+];
+```
+
+## Buffer-Scoped Options
+
+Set options that only apply to the current tab:
+
+```typescript
+glide.autocmds.create("UrlEnter", /youtube\.com/, () => {
+  // Only hide tabs when on YouTube
+  glide.bo.native_tabs = "hide";
+  
+  // Custom hint size for this site
+  glide.bo.hint_size = "16px";
+});
+```
+
+<Info>
+  Buffer options automatically reset when you navigate away or close the tab.
+</Info>
+
+## Extending Types
+
+Define custom options with full type safety:
+
+```typescript
+// In your glide.ts
+declare global {
+  interface GlideOptions {
+    my_custom_option?: boolean;
+    my_api_key?: string;
+  }
+}
+
+// Now use them
+glide.o.my_custom_option = true;
+glide.o.my_api_key = "abc123";
+```
+
+## Configuration Examples
+
+### Minimal Configuration
+
+```typescript
+// Set leader to comma
+glide.g.mapleader = ",";
+
+// Hide tab bar
+glide.o.native_tabs = "hide";
+
+// Custom reload mapping
+glide.keymaps.set("normal", "<leader>r", "reload");
+```
+
+### Site-Specific Configuration
+
+```typescript
+// GitHub-specific settings
+glide.autocmds.create("UrlEnter", /github\.com/, () => {
+  glide.bo.hint_chars = "asdfghjkl";
+  
+  glide.buf.keymaps.set("normal", "<leader>i", async () => {
+    // Navigate to issues
+    const url = new URL(glide.ctx.url);
+    url.pathname += "/issues";
+    await glide.excmds.execute("goto", { url: url.href });
+  });
+});
+
+// YouTube settings
+glide.autocmds.create("UrlEnter", /youtube\.com/, () => {
+  // Hide distracting elements
+  glide.styles.add(`
+    #related { display: none !important; }
+    ytd-comments { display: none !important; }
+  `, { id: "youtube-minimal" });
+});
+```
+
+### Advanced Configuration
+
+```typescript
+// Custom mode
+declare global {
+  interface GlideModes {
+    zen: "zen";
+  }
+}
+
+glide.modes.register("zen", { caret: "block" });
+
+glide.keymaps.set("normal", "<leader>z", "mode_change zen");
+glide.keymaps.set("zen", "<Esc>", "mode_change normal");
+
+glide.autocmds.create("ModeChanged", "*:zen", () => {
+  glide.styles.add(`
+    #TabsToolbar, #nav-bar { display: none !important; }
+  `, { id: "zen-mode" });
+});
+
+glide.autocmds.create("ModeChanged", "zen:*", () => {
+  glide.styles.remove("zen-mode");
+});
+```
+
+## Debug Configuration
+
+Check configuration state:
+
+```typescript
+// See current mode
+console.log(glide.ctx.mode);
+
+// List all keymaps
+console.log(glide.keymaps.list());
+
+// List all modes
+console.log(glide.modes.list());
+
+// Check option value
+console.log(glide.o.hint_size);
+
+// Get current URL
+console.log(glide.ctx.url.href);
+
+// Check OS
+console.log(glide.ctx.os);
+```
+
+## Configuration Lifecycle
+
+<Steps>
+  <Step title="Browser starts">
+    Glide searches for `glide.ts` in the configured directories.
+  </Step>
+  
+  <Step title="TypeScript compilation">
+    The config is transpiled from TypeScript to JavaScript using ts-blank-space.
+  </Step>
+  
+  <Step title="Sandboxed execution">
+    Your config runs in a sandbox with access to the `glide` API.
+  </Step>
+  
+  <Step title="Plugin initialization">
+    Default plugins (keymaps, hints, etc.) are loaded.
+  </Step>
+  
+  <Step title="WindowLoaded event">
+    `WindowLoaded` autocmds fire after the browser window is ready.
+  </Step>
+  
+  <Step title="ConfigLoaded event">
+    `ConfigLoaded` autocmds fire after configuration completes.
+  </Step>
+</Steps>
+
+## Autocmd Events
+
+React to browser events in your config:
+
+```typescript
+// When config loads/reloads
+glide.autocmds.create("ConfigLoaded", () => {
+  console.log("Config loaded!");
+});
+
+// When browser window opens (once)
+glide.autocmds.create("WindowLoaded", () => {
+  console.log("Window loaded!");
+});
+
+// When URL changes
+glide.autocmds.create("UrlEnter", /.*/, ({ url }) => {
+  console.log("Navigated to:", url);
+});
+
+// When mode changes
+glide.autocmds.create("ModeChanged", "*:insert", () => {
+  console.log("Entered insert mode");
+});
+
+// When command line closes
+glide.autocmds.create("CommandLineExit", () => {
+  console.log("Command line closed");
+});
+```
+
+## Configuration Errors
+
+When errors occur:
+
+1. A notification appears at the top of the browser
+2. Error details are logged to the browser console (F12)
+3. The config continues loading (best effort)
+
+<Warning>
+  Syntax errors in `glide.ts` will prevent the config from loading. Check the console for details.
+</Warning>
+
+To reload after fixing errors:
+
+```
+:config_reload
+```
+
+## Source Code References
+
+<Accordion title="Key implementation files">
+  - **Config initialization**: `src/glide/browser/base/content/config-init.mts:11-169`
+  - **Config loading**: `src/glide/browser/base/content/browser.mts:243-300`
+  - **API implementation**: `src/glide/browser/base/content/browser-api.mts`
+  - **Type definitions**: `src/glide/browser/base/content/glide.d.ts`
+  - **Sandbox creation**: `src/glide/browser/base/content/sandbox.mts`
+  - **TypeScript transpilation**: Uses ts-blank-space
+</Accordion>

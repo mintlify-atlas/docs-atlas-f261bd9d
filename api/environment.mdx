@@ -1,0 +1,266 @@
+---
+title: "glide.env"
+description: "Get, set, and delete environment variables"
+---
+
+The `glide.env` API provides methods for managing environment variables within Glide.
+
+## Methods
+
+### get()
+
+Get the value of an environment variable.
+
+```typescript
+const value = glide.env.get(
+  name: string
+): string | null
+```
+
+<ParamField path="name" type="string" required>
+  The name of the environment variable to retrieve.
+</ParamField>
+
+<ResponseField name="value" type="string | null">
+  The value of the environment variable, or `null` if it doesn't exist.
+</ResponseField>
+
+**Example: Get PATH variable**
+
+```typescript
+const path = glide.env.get("PATH");
+console.log("PATH:", path);
+```
+
+**Example: Check if variable exists**
+
+```typescript
+const editor = glide.env.get("EDITOR");
+if (editor !== null) {
+  console.log("Default editor:", editor);
+} else {
+  console.log("EDITOR not set");
+}
+```
+
+**Example: Get non-existent variable**
+
+```typescript
+const value = glide.env.get("NONEXISTENT_VAR");
+console.log(value); // null
+```
+
+---
+
+### set()
+
+Set the value of an environment variable.
+
+```typescript
+glide.env.set(
+  name: string,
+  value: string
+): void
+```
+
+<ParamField path="name" type="string" required>
+  The name of the environment variable to set.
+</ParamField>
+
+<ParamField path="value" type="string" required>
+  The value to set.
+</ParamField>
+
+<Note>
+  Changes affect Glide and any processes it spawns, but don't affect the parent process that launched Glide.
+</Note>
+
+**Example: Set custom variable**
+
+```typescript
+glide.env.set("MY_VAR", "custom_value");
+console.log(glide.env.get("MY_VAR")); // "custom_value"
+```
+
+**Example: Update PATH on macOS**
+
+```typescript
+// On macOS, applications don't inherit your shell environment
+// Update PATH so spawned processes can find binaries
+glide.env.set(
+  "PATH",
+  "/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin"
+);
+```
+
+**Example: Set configuration variable**
+
+```typescript
+glide.env.set("GLIDE_THEME", "dark");
+glide.env.set("GLIDE_DEBUG", "true");
+```
+
+**Example: Environment variable for spawned processes**
+
+```typescript
+glide.env.set("NODE_ENV", "production");
+
+const proc = await glide.process.spawn("node", ["script.js"]);
+// script.js will have NODE_ENV=production in its environment
+```
+
+---
+
+### delete()
+
+Remove an environment variable.
+
+```typescript
+const value = glide.env.delete(
+  name: string
+): string | null
+```
+
+<ParamField path="name" type="string" required>
+  The name of the environment variable to delete.
+</ParamField>
+
+<ResponseField name="value" type="string | null">
+  The value of the deleted environment variable, or `null` if it didn't exist.
+</ResponseField>
+
+<Note>
+  Does not error if the environment variable didn't already exist.
+</Note>
+
+**Example: Delete variable**
+
+```typescript
+glide.env.set("TEMP_VAR", "temporary");
+const deleted = glide.env.delete("TEMP_VAR");
+console.log(deleted); // "temporary"
+console.log(glide.env.get("TEMP_VAR")); // null
+```
+
+**Example: Delete non-existent variable**
+
+```typescript
+const value = glide.env.delete("NONEXISTENT_VAR");
+console.log(value); // null (no error thrown)
+```
+
+**Example: Clean up after testing**
+
+```typescript
+glide.env.set("TEST_MODE", "enabled");
+// ... run tests ...
+glide.env.delete("TEST_MODE");
+```
+
+## Usage Patterns
+
+### Conditional Configuration
+
+```typescript
+const mode = glide.env.get("GLIDE_MODE");
+if (mode === "dev") {
+  // Development-specific configuration
+  glide.o.hint_chars = "asdfghjkl";
+} else {
+  // Production configuration
+  glide.o.hint_chars = "hjklasdfgyuiopqwertnmzxcvb";
+}
+```
+
+### System Detection
+
+```typescript
+const shell = glide.env.get("SHELL");
+if (shell?.includes("zsh")) {
+  console.log("Using zsh shell");
+} else if (shell?.includes("bash")) {
+  console.log("Using bash shell");
+}
+```
+
+### PATH Management
+
+```typescript
+// Get current PATH
+const currentPath = glide.env.get("PATH") || "";
+
+// Add custom directory to PATH
+const customBin = `${glide.path.home_dir}/bin`;
+if (!currentPath.includes(customBin)) {
+  glide.env.set("PATH", `${customBin}:${currentPath}`);
+}
+```
+
+### Process Environment Variables
+
+Environment variables set with `glide.env` are inherited by spawned processes:
+
+```typescript
+glide.env.set("API_KEY", "secret-key-123");
+
+const proc = await glide.process.spawn("node", ["api-client.js"]);
+// api-client.js can access process.env.API_KEY
+```
+
+You can also set per-process environment variables:
+
+```typescript
+// This only affects the spawned process
+const proc = await glide.process.spawn("node", ["script.js"], {
+  env: {
+    "SCRIPT_MODE": "test",
+    "DEBUG": "true"
+  }
+});
+```
+
+### Removing Environment Variables from Processes
+
+```typescript
+// Delete a variable from a spawned process's environment
+const proc = await glide.process.spawn("printenv", [], {
+  env: {
+    "UNWANTED_VAR": null  // Set to null to remove
+  }
+});
+```
+
+## Platform Differences
+
+### macOS Considerations
+
+On macOS, applications launched from the GUI (including Glide) don't inherit your shell's environment variables:
+
+```typescript
+// Common issue on macOS:
+const path = glide.env.get("PATH");
+console.log(path); // May only contain: "/usr/bin:/bin:/usr/sbin:/sbin"
+
+// Solution: Set PATH explicitly
+glide.env.set(
+  "PATH",
+  "/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin:" +
+  `${glide.path.home_dir}/.local/bin`
+);
+```
+
+### Windows Considerations
+
+Environment variable names on Windows are case-insensitive:
+
+```typescript
+glide.env.set("MyVar", "value");
+console.log(glide.env.get("MYVAR")); // "value" (on Windows)
+console.log(glide.env.get("MYVAR")); // null (on Unix)
+```
+
+## Related APIs
+
+- [`glide.process`](/api/process) - Spawn processes that inherit environment variables
+- [`glide.ctx.os`](/api/context) - Detect the current operating system
+- [`glide.path`](/api/path) - Path utilities for environment-dependent paths

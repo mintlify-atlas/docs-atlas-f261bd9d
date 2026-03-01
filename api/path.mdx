@@ -1,0 +1,327 @@
+---
+title: "glide.path"
+description: "Path utilities and system directory constants"
+---
+
+The `glide.path` API provides utilities for working with file system paths and constants for important system directories.
+
+## Properties
+
+### cwd
+
+The current working directory.
+
+```typescript
+const cwd: string = glide.path.cwd
+```
+
+<ResponseField name="cwd" type="string">
+  The absolute path to the current working directory.
+</ResponseField>
+
+**Example**
+
+```typescript
+console.log('Current directory:', glide.path.cwd);
+// Output: /home/user/projects/my-app
+
+const proc = await glide.process.spawn('pwd');
+const output = await proc.stdout.text();
+console.log(output.trim() === glide.path.cwd); // true
+```
+
+---
+
+### home_dir
+
+The user's home directory.
+
+```typescript
+const home_dir: string = glide.path.home_dir
+```
+
+<ResponseField name="home_dir" type="string">
+  The absolute path to the user's home directory.
+</ResponseField>
+
+**Example**
+
+```typescript
+console.log('Home directory:', glide.path.home_dir);
+// Linux/macOS: /home/username
+// Windows: C:\Users\username
+
+// Read a file from home directory
+const bashrc = await glide.fs.read(
+  `${glide.path.home_dir}/.bashrc`,
+  "utf8"
+);
+
+// Check if a config directory exists
+const configExists = await glide.fs.exists(
+  `${glide.path.home_dir}/.config/app`
+);
+```
+
+---
+
+### temp_dir
+
+The system's temporary directory.
+
+```typescript
+const temp_dir: string = glide.path.temp_dir
+```
+
+<ResponseField name="temp_dir" type="string">
+  The absolute path to the system's temporary directory.
+</ResponseField>
+
+**Example**
+
+```typescript
+console.log('Temp directory:', glide.path.temp_dir);
+// Linux: /tmp
+// macOS: /var/folders/...
+// Windows: C:\Users\username\AppData\Local\Temp
+
+// Create a temporary file
+const tempFile = glide.path.join(
+  glide.path.temp_dir,
+  'glide-temp-' + Date.now() + '.txt'
+);
+await glide.fs.write(tempFile, 'temporary data');
+
+// Spawn a process in temp directory
+const proc = await glide.process.spawn('ls', [], {
+  cwd: glide.path.temp_dir
+});
+```
+
+---
+
+### profile_dir
+
+The Glide profile directory where configuration and data are stored.
+
+```typescript
+const profile_dir: string = glide.path.profile_dir
+```
+
+<ResponseField name="profile_dir" type="string">
+  The absolute path to Glide's profile directory.
+</ResponseField>
+
+**Example**
+
+```typescript
+console.log('Profile directory:', glide.path.profile_dir);
+// Typical: ~/.glide/profiles/default
+
+// Check profile directory info
+const stat = await glide.fs.stat(glide.path.profile_dir);
+console.log('Type:', stat.type); // "directory"
+
+// Read a profile-specific file
+const configPath = glide.path.join(
+  glide.path.profile_dir,
+  'glide',
+  'glide.ts'
+);
+const exists = await glide.fs.exists(configPath);
+```
+
+---
+
+## Methods
+
+### join()
+
+Join all arguments together and normalize the resulting path.
+
+```typescript
+const path = glide.path.join(
+  ...parts: string[]
+): string
+```
+
+<ParamField path="parts" type="string[]" required>
+  Path segments to join together.
+</ParamField>
+
+<ResponseField name="path" type="string">
+  The normalized joined path.
+</ResponseField>
+
+<Warning>
+  Throws an error on non-relative paths. All parts must be relative path segments.
+</Warning>
+
+**Example: Basic path joining**
+
+```typescript
+const path = glide.path.join('/tmp', 'foo', 'bar', 'baz.txt');
+console.log(path); // "/tmp/foo/bar/baz.txt"
+```
+
+**Example: Build config path**
+
+```typescript
+const configPath = glide.path.join(
+  glide.path.home_dir,
+  '.config',
+  'myapp',
+  'settings.json'
+);
+// Linux/macOS: /home/user/.config/myapp/settings.json
+```
+
+**Example: Create nested file**
+
+```typescript
+const filePath = glide.path.join(
+  glide.path.profile_dir,
+  'glide',
+  'styles',
+  'custom.css'
+);
+await glide.fs.write(filePath, '.button { color: red; }');
+```
+
+**Example: Path with environment variable**
+
+```typescript
+const dataDir = glide.env.get('XDG_DATA_HOME') ||
+  glide.path.join(glide.path.home_dir, '.local', 'share');
+
+const appData = glide.path.join(dataDir, 'myapp', 'data.db');
+```
+
+## Usage Patterns
+
+### Working with Home Directory
+
+```typescript
+// Expand tilde-like paths
+function expandPath(path: string): string {
+  if (path.startsWith('~')) {
+    return path.replace('~', glide.path.home_dir);
+  }
+  return path;
+}
+
+const expanded = expandPath('~/.config/app');
+console.log(expanded); // "/home/user/.config/app"
+```
+
+### Platform-Specific Paths
+
+```typescript
+function getConfigDir(): string {
+  switch (glide.ctx.os) {
+    case 'win':
+      const appData = glide.env.get('APPDATA');
+      return appData || glide.path.join(glide.path.home_dir, 'AppData', 'Roaming');
+    case 'macosx':
+      return glide.path.join(glide.path.home_dir, 'Library', 'Application Support');
+    default:
+      const xdgConfig = glide.env.get('XDG_CONFIG_HOME');
+      return xdgConfig || glide.path.join(glide.path.home_dir, '.config');
+  }
+}
+
+const configDir = getConfigDir();
+const appConfig = glide.path.join(configDir, 'myapp', 'config.json');
+```
+
+### Creating Directory Structures
+
+```typescript
+// Create a nested directory structure
+const projectDir = glide.path.join(
+  glide.path.home_dir,
+  'projects',
+  'myapp'
+);
+
+await glide.fs.mkdir(glide.path.join(projectDir, 'src'));
+await glide.fs.mkdir(glide.path.join(projectDir, 'dist'));
+await glide.fs.mkdir(glide.path.join(projectDir, 'tests'));
+
+// Write files
+await glide.fs.write(
+  glide.path.join(projectDir, 'src', 'index.ts'),
+  'export {}'
+);
+```
+
+### Temporary File Management
+
+```typescript
+// Create unique temporary file
+function createTempFile(prefix: string, extension: string): string {
+  const filename = `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}${extension}`;
+  return glide.path.join(glide.path.temp_dir, filename);
+}
+
+const tempLog = createTempFile('glide-log', '.txt');
+await glide.fs.write(tempLog, 'Log data...');
+
+// Use temp file with process
+const proc = await glide.process.spawn('cat', [tempLog]);
+const output = await proc.stdout.text();
+```
+
+### Relative vs Absolute Paths
+
+```typescript
+// Check if path is absolute
+function isAbsolute(path: string): boolean {
+  // Unix-like systems
+  if (path.startsWith('/')) return true;
+  // Windows
+  if (/^[A-Za-z]:\\/.test(path)) return true;
+  return false;
+}
+
+// Convert relative to absolute
+function toAbsolute(path: string, base?: string): string {
+  if (isAbsolute(path)) return path;
+  return glide.path.join(base || glide.path.cwd, path);
+}
+
+const abs = toAbsolute('src/index.ts');
+console.log(abs); // "/current/directory/src/index.ts"
+```
+
+## Path Constants Reference
+
+| Property | Description | Example (Linux/macOS) | Example (Windows) |
+|----------|-------------|----------------------|-------------------|
+| `cwd` | Current working directory | `/home/user/project` | `C:\Users\user\project` |
+| `home_dir` | User home directory | `/home/user` | `C:\Users\user` |
+| `temp_dir` | System temporary directory | `/tmp` | `C:\Users\user\AppData\Local\Temp` |
+| `profile_dir` | Glide profile directory | `/home/user/.glide/profiles/default` | `C:\Users\user\.glide\profiles\default` |
+
+## Path Separators
+
+Glide automatically handles platform-specific path separators:
+
+```typescript
+// Works on all platforms
+const path = glide.path.join(
+  glide.path.home_dir,
+  'Documents',
+  'file.txt'
+);
+
+// Linux/macOS: /home/user/Documents/file.txt
+// Windows: C:\Users\user\Documents\file.txt
+```
+
+## Related APIs
+
+- [`glide.fs`](/api/filesystem) - File system operations
+- [`glide.process`](/api/process) - Spawn processes with custom working directories
+- [`glide.env`](/api/environment) - Access environment variables like `HOME`, `TMPDIR`
+- [`glide.ctx.os`](/api/context) - Detect the current operating system

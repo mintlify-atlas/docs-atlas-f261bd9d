@@ -1,0 +1,476 @@
+---
+title: glide.autocmds
+description: Create event-driven behaviors with autocmds
+---
+
+The `glide.autocmds` API allows you to register callbacks that are automatically triggered in response to specific events.
+
+## Methods
+
+### create()
+
+Create an autocmd that responds to browser events.
+
+```typescript
+glide.autocmds.create<Event extends AutocmdEvent>(
+  event: Event,
+  pattern: AutocmdPatterns[Event],
+  callback: (args: AutocmdArgs[Event]) => void
+): void
+```
+
+---
+
+## UrlEnter
+
+Triggered when the focused URL changes. This includes:
+1. URL changes within the same tab
+2. Switching tabs
+3. Navigating back/forward in history
+
+### Signature
+
+```typescript
+glide.autocmds.create(
+  'UrlEnter',
+  pattern: RegExp | { hostname?: string },
+  callback: (args: { url: string; tab_id: number }) => void
+): void
+```
+
+### Parameters
+
+<ParamField path="pattern" type="RegExp | { hostname?: string }" required>
+  Match against URLs:
+  - `RegExp` - Matches against the full URL string
+  - `{ hostname: string }` - Matches against the hostname only
+</ParamField>
+
+<ParamField path="callback" type="function" required>
+  Called with:
+  - `url` - The current URL as a string
+  - `tab_id` - The tab identifier
+</ParamField>
+
+### Examples
+
+**Match by hostname:**
+```typescript
+glide.autocmds.create('UrlEnter', { hostname: 'github.com' }, ({ url, tab_id }) => {
+  console.log('Entered GitHub:', url);
+  // Apply GitHub-specific configuration
+  glide.buf.keymaps.set('normal', '<leader>gp', () => {
+    // GitHub-specific action
+  });
+});
+```
+
+**Match by regex:**
+```typescript
+glide.autocmds.create('UrlEnter', /youtube\.com\/watch/, ({ url }) => {
+  console.log('Watching YouTube video:', url);
+});
+
+glide.autocmds.create('UrlEnter', /^https:\/\/.*\.pdf$/, ({ url }) => {
+  console.log('Opened PDF:', url);
+});
+```
+
+**Implementation:**
+```typescript:glide.d.ts:2217-2219
+type AutocmdPatterns = {
+  UrlEnter: RegExp | { hostname?: string };
+  // ...
+```
+
+---
+
+## ModeChanged
+
+Triggered whenever the mode changes.
+
+### Signature
+
+```typescript
+glide.autocmds.create(
+  'ModeChanged',
+  pattern: "*" | `${GlideMode | "*"}:${GlideMode | "*"}`,
+  callback: (args: { old_mode: GlideMode | null; new_mode: GlideMode }) => void
+): void
+```
+
+### Parameters
+
+<ParamField path="pattern" type="string" required>
+  Pattern format: `"old_mode:new_mode"`
+  
+  Use `*` as a wildcard to match any mode:
+  - `"*:visual"` - Entering visual mode from any mode
+  - `"visual:*"` - Leaving visual mode to any mode
+  - `"visual:insert"` - Specifically visual → insert
+  - `"*"` - Any mode change
+</ParamField>
+
+<ParamField path="callback" type="function" required>
+  Called with:
+  - `old_mode` - Previous mode (may be `null` on initial load or config reload)
+  - `new_mode` - New mode
+</ParamField>
+
+### Examples
+
+**Detect entering visual mode:**
+```typescript
+glide.autocmds.create('ModeChanged', '*:visual', ({ old_mode, new_mode }) => {
+  console.log(`Entered visual mode from ${old_mode}`);
+});
+```
+
+**Detect leaving insert mode:**
+```typescript
+glide.autocmds.create('ModeChanged', 'insert:*', ({ new_mode }) => {
+  console.log(`Left insert mode, now in ${new_mode}`);
+});
+```
+
+**Detect specific transition:**
+```typescript
+glide.autocmds.create('ModeChanged', 'visual:normal', () => {
+  console.log('Returned to normal mode from visual');
+});
+```
+
+**Track all mode changes:**
+```typescript
+glide.autocmds.create('ModeChanged', '*', ({ old_mode, new_mode }) => {
+  console.log(`Mode: ${old_mode} → ${new_mode}`);
+});
+```
+
+**Implementation:**
+```typescript:glide.d.ts:2219
+ModeChanged: "*" | `${GlideMode | "*"}:${GlideMode | "*"}`;
+```
+
+---
+
+## KeyStateChanged
+
+Triggered when the key sequence state changes.
+
+### Signature
+
+```typescript
+glide.autocmds.create(
+  'KeyStateChanged',
+  callback: (args: {
+    mode: GlideMode;
+    sequence: string[];
+    partial: boolean;
+  }) => void
+): void
+```
+
+### Parameters
+
+<ParamField path="callback" type="function" required>
+  Called with:
+  - `mode` - Current mode
+  - `sequence` - Current key sequence (e.g., `["g", "t"]`)
+  - `partial` - Whether this is a partial sequence waiting for more keys
+</ParamField>
+
+### Triggered When
+
+1. A key is pressed that matches a key mapping
+2. A key is pressed that is part of a key mapping
+3. A key is pressed that cancels a previous partial key mapping
+4. A partial key mapping times out (see `glide.o.mapping_timeout`)
+
+### Example
+
+With `glide.keymaps.set('normal', 'gt', '...')` defined:
+
+- Pressing `g` triggers: `{ sequence: ["g"], partial: true }`
+- Then pressing `t` triggers: `{ sequence: ["g", "t"], partial: false }`
+- Or pressing any other key triggers: `{ sequence: [], partial: false }`
+
+**Display key sequence:**
+```typescript
+glide.autocmds.create('KeyStateChanged', ({ sequence, partial }) => {
+  if (partial) {
+    console.log('Waiting for key:', sequence.join(''));
+  } else if (sequence.length > 0) {
+    console.log('Executed:', sequence.join(''));
+  }
+});
+```
+
+**Implementation:**
+```typescript:glide.d.ts:2237-2241
+KeyStateChanged: {
+  readonly mode: GlideMode;
+  readonly sequence: string[];
+  readonly partial: boolean;
+};
+```
+
+---
+
+## ConfigLoaded
+
+Triggered when the config is loaded (initial load and every reload).
+
+### Signature
+
+```typescript
+glide.autocmds.create(
+  'ConfigLoaded',
+  callback: () => void
+): void
+```
+
+### Example
+
+```typescript
+glide.autocmds.create('ConfigLoaded', () => {
+  console.log('Config loaded at:', new Date().toISOString());
+  console.log('Current mode:', glide.ctx.mode);
+});
+```
+
+**Implementation:**
+```typescript:glide.d.ts:2220
+ConfigLoaded: null;
+```
+
+---
+
+## WindowLoaded
+
+Triggered when the window is initially loaded.
+
+**Note:** This is NOT invoked when the config is reloaded.
+
+### Signature
+
+```typescript
+glide.autocmds.create(
+  'WindowLoaded',
+  callback: () => void
+): void
+```
+
+### Example
+
+```typescript
+glide.autocmds.create('WindowLoaded', () => {
+  console.log('Window initialized');
+  // Perform one-time setup
+});
+```
+
+**Implementation:**
+```typescript:glide.d.ts:2221
+WindowLoaded: null;
+```
+
+---
+
+## CommandLineExit
+
+Triggered when the commandline UI is closed.
+
+### Signature
+
+```typescript
+glide.autocmds.create(
+  'CommandLineExit',
+  callback: () => void
+): void
+```
+
+### Example
+
+```typescript
+glide.autocmds.create('CommandLineExit', () => {
+  console.log('Commandline closed');
+});
+```
+
+**Implementation:**
+```typescript:glide.d.ts:2222
+CommandLineExit: null;
+```
+
+---
+
+## remove()
+
+Remove a previously created autocmd.
+
+```typescript
+glide.autocmds.remove<Event extends AutocmdEvent>(
+  event: Event,
+  callback: (args: AutocmdArgs[Event]) => void
+): boolean
+```
+
+### Parameters
+
+<ParamField path="event" type="AutocmdEvent" required>
+  The event type to remove the callback from.
+</ParamField>
+
+<ParamField path="callback" type="function" required>
+  The specific callback function to remove (must be the same reference).
+</ParamField>
+
+### Returns
+
+`true` if the autocmd was found and removed, `false` otherwise.
+
+### Example
+
+**Create and remove autocmd:**
+```typescript
+function handleUrlChange({ url }: { url: string }) {
+  console.log('URL changed:', url);
+}
+
+glide.autocmds.create('UrlEnter', /.*/, handleUrlChange);
+
+// Later...
+const removed = glide.autocmds.remove('UrlEnter', handleUrlChange);
+console.log('Removed:', removed); // true
+```
+
+**One-time autocmd:**
+```typescript
+glide.autocmds.create('UrlEnter', /example\.com/, function handleExample({ url }) {
+  console.log('First visit to example.com:', url);
+  // Remove itself after first trigger
+  glide.autocmds.remove('UrlEnter', handleExample);
+});
+```
+
+**Implementation:**
+```typescript:browser-api.mts:291-301
+remove<Event extends glide.AutocmdEvent>(event: Event, cb?: (args: glide.AutocmdArgs[Event]) => void) {
+  const events = GlideBrowser.autocmds[event];
+  if (events == null) {
+    return false;
+  }
+
+  const filtered = events.filter(({ callback }) => callback !== cb);
+  GlideBrowser.autocmds[event] = filtered as (typeof GlideBrowser.autocmds)[Event];
+
+  return filtered.length !== events.length;
+}
+```
+
+---
+
+## Event Types Summary
+
+```typescript:glide.d.ts:2210-2242
+type AutocmdEvent =
+  | "UrlEnter"
+  | "ModeChanged"
+  | "ConfigLoaded"
+  | "WindowLoaded"
+  | "CommandLineExit"
+  | "KeyStateChanged";
+
+type AutocmdPatterns = {
+  UrlEnter: RegExp | { hostname?: string };
+  ModeChanged: "*" | `${GlideMode | "*"}:${GlideMode | "*"}`;
+  ConfigLoaded: null;
+  WindowLoaded: null;
+  CommandLineExit: null;
+  KeyStateChanged: null;
+};
+
+type AutocmdArgs = {
+  UrlEnter: { readonly url: string; readonly tab_id: number };
+  ModeChanged: {
+    readonly old_mode: GlideMode | null;
+    readonly new_mode: GlideMode;
+  };
+  ConfigLoaded: {};
+  WindowLoaded: {};
+  CommandLineExit: {};
+  KeyStateChanged: {
+    readonly mode: GlideMode;
+    readonly sequence: string[];
+    readonly partial: boolean;
+  };
+};
+```
+
+---
+
+## Complete Example
+
+```typescript
+// Site-specific configurations
+glide.autocmds.create('UrlEnter', { hostname: 'github.com' }, ({ url }) => {
+  console.log('GitHub:', url);
+  glide.bo.hint_size = "14px";
+  glide.buf.keymaps.set('normal', '<leader>pr', () => {
+    // Navigate to pull requests
+    const base = new URL(url).origin + new URL(url).pathname;
+    window.location.href = base + '/pulls';
+  });
+});
+
+glide.autocmds.create('UrlEnter', /youtube\.com/, ({ url }) => {
+  console.log('YouTube:', url);
+  // Hide YouTube recommendations
+  glide.styles.add(css`
+    ytd-watch-next-secondary-results-renderer {
+      display: none !important;
+    }
+  `, { id: 'hide-yt-recommendations' });
+});
+
+// Mode-based behavior
+glide.autocmds.create('ModeChanged', '*:insert', () => {
+  console.log('Entered insert mode');
+});
+
+glide.autocmds.create('ModeChanged', 'insert:*', () => {
+  console.log('Left insert mode');
+});
+
+// Track key sequences
+glide.autocmds.create('KeyStateChanged', ({ sequence, partial }) => {
+  if (partial && sequence.length > 0) {
+    console.log('Partial sequence:', sequence.join(''));
+  }
+});
+
+// Initialization
+let configLoadCount = 0;
+glide.autocmds.create('ConfigLoaded', () => {
+  configLoadCount++;
+  console.log(`Config loaded ${configLoadCount} time(s)`);
+});
+
+glide.autocmds.create('WindowLoaded', () => {
+  console.log('Window loaded at:', new Date());
+  console.log('OS:', glide.ctx.os);
+  console.log('Version:', glide.ctx.version);
+});
+
+// Commandline tracking
+glide.autocmds.create('CommandLineExit', () => {
+  console.log('Commandline closed');
+});
+
+// Self-removing autocmd
+glide.autocmds.create('UrlEnter', /first-time/, function firstVisit({ url }) {
+  console.log('First visit to matching URL:', url);
+  glide.autocmds.remove('UrlEnter', firstVisit);
+});
+```

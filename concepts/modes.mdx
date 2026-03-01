@@ -1,0 +1,257 @@
+---
+title: Modal Editing System
+description: Understanding Glide's modal editing modes and how they work
+---
+
+Glide Browser uses a modal editing system inspired by Vim, where different modes change how keyboard input is interpreted. This allows for efficient keyboard-driven browsing without conflicts between navigation and text input.
+
+## Built-in Modes
+
+Glide comes with six built-in modes, each designed for specific tasks:
+
+<Tabs>
+  <Tab title="Normal Mode">
+    The default mode for browsing and navigation. Most keybindings are active in this mode.
+    
+    **Purpose**: Navigate pages, follow links, manage tabs, and trigger browser actions
+    
+    **Common keybindings**:
+    - `f` - Show hints for clickable elements
+    - `gg` / `G` - Scroll to top/bottom
+    - `<Space>r` - Reload page (using leader key)
+    - `:` - Open command line
+    
+    **Switch to normal**: Press `<Esc>` from most other modes
+  </Tab>
+  
+  <Tab title="Insert Mode">
+    For typing text into input fields, textareas, and contenteditable elements.
+    
+    **Purpose**: Text input without keybinding interference
+    
+    **Behavior**: Most Glide keybindings are disabled to allow normal typing. Some essential bindings like `<Ctrl-j>` (next tab) and `<Ctrl-k>` (previous tab) remain active.
+    
+    **Auto-switching**: Glide automatically switches to insert mode when you focus an editable element (controlled by `glide.o.switch_mode_on_focus`).
+    
+    **Switch to insert**:
+    - `i` - Enter insert mode (from normal)
+    - `a` - Enter insert mode (from normal) 
+    - `A` - Enter insert mode at end of line (from normal)
+    - `gi` - Focus last input field and enter insert mode
+  </Tab>
+  
+  <Tab title="Visual Mode">
+    For selecting and manipulating text on the page.
+    
+    **Purpose**: Select text using keyboard navigation
+    
+    **Common keybindings**:
+    - `v` - Start visual selection (from normal)
+    - `h` / `l` - Extend selection left/right
+    - `y` - Yank (copy) selected text
+    - `d` - Delete selected text
+    - `c` - Change (delete and enter insert mode)
+    
+    **Switch to visual**: Press `v` from normal mode
+  </Tab>
+  
+  <Tab title="Hint Mode">
+    Activated when showing keyboard hints for clickable elements.
+    
+    **Purpose**: Select links and interactive elements by typing hint labels
+    
+    **Behavior**: 
+    - Type the hint label characters to filter hints
+    - Press `<Esc>` to cancel and return to normal mode
+    - Selecting a hint automatically returns to normal mode
+    
+    **Registered in**: `src/glide/browser/base/content/plugins/hints.mts:19`
+    
+    ```typescript
+    glide.modes.register("hint", { caret: "block" });
+    ```
+  </Tab>
+  
+  <Tab title="Command Mode">
+    Active when the command line is open.
+    
+    **Purpose**: Execute ex-style commands
+    
+    **Common keybindings**:
+    - `<Tab>` / `<Shift-Tab>` - Navigate completions
+    - `<Enter>` - Accept and execute command
+    - `<Esc>` - Close command line
+    - `<Ctrl-d>` - Delete completion item
+    
+    **Switch to command**: Press `:` from normal mode
+  </Tab>
+  
+  <Tab title="Ignore Mode">
+    Disables all Glide keybindings except the toggle to exit.
+    
+    **Purpose**: Temporarily bypass Glide to use website shortcuts or for troubleshooting
+    
+    **Behavior**: All keys pass through to the page/browser as if Glide wasn't active
+    
+    **Toggle**: Press `<Shift-Esc>` to enter/exit ignore mode (works from any mode)
+    
+    ```typescript
+    // From keymaps.mts
+    glide.keymaps.set(["normal", "insert", "visual"], "<S-Esc>", "mode_change ignore");
+    glide.keymaps.set("ignore", "<S-Esc>", "mode_change normal");
+    ```
+  </Tab>
+</Tabs>
+
+## Operator-Pending Mode
+
+There's also a special `op-pending` mode used internally for Vim-style operators:
+
+<Info>
+  **Operator-Pending Mode** is entered after pressing an operator key like `d` (delete) or `c` (change). The next motion determines what text to operate on.
+  
+  Example: `dw` deletes to the end of the word - `d` enters op-pending, then `w` executes the motion.
+</Info>
+
+## Mode Switching
+
+Modes are changed using the `mode_change` command:
+
+```typescript
+// Switch to insert mode
+glide.keymaps.set("normal", "i", "mode_change insert --automove=left");
+
+// Switch to ignore mode from multiple modes
+glide.keymaps.set(["normal", "insert", "visual"], "<S-Esc>", "mode_change ignore");
+
+// Return to normal from insert/visual/op-pending
+glide.keymaps.set(["insert", "visual", "op-pending"], "<Esc>", "mode_change normal");
+```
+
+### Checking Current Mode
+
+Access the current mode via the context API:
+
+```typescript
+if (glide.ctx.mode === "insert") {
+  // Do something specific to insert mode
+}
+
+console.log("Current mode:", glide.ctx.mode);
+```
+
+## Caret Appearance
+
+Each mode can configure the caret (cursor) style:
+
+<Tabs>
+  <Tab title="Block">
+    A filled block cursor covering the entire character.
+    
+    **Used in**: normal, hint, op-pending modes
+  </Tab>
+  
+  <Tab title="Line">
+    A vertical line cursor (standard insert cursor).
+    
+    **Used in**: insert mode
+  </Tab>
+  
+  <Tab title="Underline">
+    An underline cursor beneath the character.
+    
+    **Used in**: visual mode
+  </Tab>
+</Tabs>
+
+## Custom Modes
+
+You can register your own custom modes for specialized workflows:
+
+<Steps>
+  <Step title="Declare the mode type">
+    First, declare the mode in the TypeScript type system:
+    
+    ```typescript
+    declare global {
+      interface GlideModes {
+        leap: "leap";
+      }
+    }
+    ```
+  </Step>
+  
+  <Step title="Register the mode at runtime">
+    Register the mode with Glide and specify the caret style:
+    
+    ```typescript
+    glide.modes.register('leap', { caret: 'block' });
+    ```
+  </Step>
+  
+  <Step title="Define keybindings for the mode">
+    Set up keybindings specific to your custom mode:
+    
+    ```typescript
+    // Enter the mode
+    glide.keymaps.set("normal", "<leader>l", "mode_change leap");
+    
+    // Exit the mode
+    glide.keymaps.set("leap", "<Esc>", "mode_change normal");
+    
+    // Mode-specific bindings
+    glide.keymaps.set("leap", "s", async () => {
+      // Your leap logic here
+    });
+    ```
+  </Step>
+</Steps>
+
+<Warning>
+  Custom modes must be both type-declared AND registered at runtime. Missing either step will cause errors.
+</Warning>
+
+## Mode Change Events
+
+React to mode changes using autocmds:
+
+```typescript
+// Called when entering visual mode from any mode
+glide.autocmds.create("ModeChanged", "*:visual", ({ old_mode, new_mode }) => {
+  console.log(`Entered visual mode from ${old_mode}`);
+});
+
+// Called when leaving visual mode
+glide.autocmds.create("ModeChanged", "visual:*", ({ old_mode, new_mode }) => {
+  console.log(`Left visual mode, now in ${new_mode}`);
+});
+
+// Called on any mode change
+glide.autocmds.create("ModeChanged", "*", ({ old_mode, new_mode }) => {
+  console.log(`Mode changed: ${old_mode} → ${new_mode}`);
+});
+
+// Specific transition
+glide.autocmds.create("ModeChanged", "normal:insert", ({ old_mode, new_mode }) => {
+  console.log("Started editing");
+});
+```
+
+## List All Modes
+
+Get an array of all registered modes:
+
+```typescript
+const modes = glide.modes.list();
+console.log("Available modes:", modes);
+// ["normal", "insert", "visual", "ignore", "command", "op-pending", "hint"]
+```
+
+## Source Code References
+
+<Accordion title="Key implementation files">
+  - **Mode registration**: `src/glide/browser/base/content/browser-api.mts:886-897`
+  - **Mode type definitions**: `src/glide/browser/base/content/glide.d.ts:1118-1125`
+  - **Hint mode setup**: `src/glide/browser/base/content/plugins/hints.mts:19`
+  - **Mode switching keybindings**: `src/glide/browser/base/content/plugins/keymaps.mts:27-84`
+</Accordion>

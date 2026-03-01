@@ -1,0 +1,171 @@
+---
+title: glide.ctx
+description: Access runtime context information like mode, version, URL, and OS
+---
+
+The `glide.ctx` object provides read-only access to runtime context information about the current browser state.
+
+## Properties
+
+### mode
+
+```typescript
+glide.ctx.mode: GlideMode
+```
+
+The currently active mode.
+
+**Example:**
+```typescript
+if (glide.ctx.mode === 'normal') {
+  console.log('Currently in normal mode');
+}
+```
+
+---
+
+### version
+
+```typescript
+glide.ctx.version: string
+```
+
+The current Glide version.
+
+**Example:**
+```typescript
+console.log(glide.ctx.version); // "0.1.53a"
+```
+
+---
+
+### firefox_version
+
+```typescript
+glide.ctx.firefox_version: string
+```
+
+The Firefox version that Glide is based on.
+
+**Example:**
+```typescript
+console.log(glide.ctx.firefox_version); // "145.0b6"
+```
+
+---
+
+### url
+
+```typescript
+glide.ctx.url: URL
+```
+
+The URL of the currently focused tab.
+
+**Example:**
+```typescript
+if (glide.ctx.url.hostname === 'github.com') {
+  // Apply GitHub-specific configuration
+}
+```
+
+**Implementation:**
+```typescript:browser-api.mts:246-252
+get url() {
+  const url = (gBrowser?.selectedBrowser?.currentURI as nsIURI)?.spec;
+  if (!url) {
+    throw new Error("Could not resolve the current URL.");
+  }
+  return new GlideBrowser.sandbox_window.URL(url);
+}
+```
+
+---
+
+### os
+
+```typescript
+glide.ctx.os: "linux" | "win" | "macosx" | "ios" | "android" | "other"
+```
+
+The operating system Glide is running on.
+
+**Example:**
+```typescript
+if (glide.ctx.os === 'macosx') {
+  // macOS-specific keybindings
+  glide.keymaps.set('normal', '<D-c>', 'yank');
+}
+```
+
+**Implementation:**
+```typescript:browser-api.mts:254-257
+get os() {
+  const { AppConstants } = ChromeUtils.importESModule("resource://gre/modules/AppConstants.sys.mjs");
+  return GlideBrowser.testing.override_os ?? AppConstants.platform;
+}
+```
+
+---
+
+## Methods
+
+### is_editing()
+
+```typescript
+glide.ctx.is_editing(): Promise<boolean>
+```
+
+Returns whether the currently focused element is editable.
+
+This includes but is not limited to:
+- `<textarea>` elements
+- `<input>` elements
+- Elements with `contenteditable="true"`
+
+**Example:**
+```typescript
+const editing = await glide.ctx.is_editing();
+if (editing) {
+  console.log('User is editing text');
+}
+```
+
+**Implementation:**
+```typescript:browser-api.mts:259-261
+async is_editing() {
+  return await GlideBrowser.get_focused_actor().send_query("Glide::Query::IsEditing");
+}
+```
+
+---
+
+## Usage Examples
+
+### Conditional Configuration Based on OS
+
+```typescript
+if (glide.ctx.os === 'macosx') {
+  glide.keymaps.set('normal', '<D-t>', 'tab_new');
+} else {
+  glide.keymaps.set('normal', '<C-t>', 'tab_new');
+}
+```
+
+### URL-Based Autocmds
+
+```typescript
+glide.autocmds.create('UrlEnter', { hostname: 'github.com' }, () => {
+  console.log('Navigated to:', glide.ctx.url.href);
+});
+```
+
+### Mode-Aware Behavior
+
+```typescript
+glide.keymaps.set('normal', '<leader>m', () => {
+  console.log('Current mode:', glide.ctx.mode);
+  console.log('Glide version:', glide.ctx.version);
+  console.log('Firefox version:', glide.ctx.firefox_version);
+});
+```

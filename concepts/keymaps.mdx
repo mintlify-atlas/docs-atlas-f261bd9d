@@ -1,0 +1,406 @@
+---
+title: Keymaps
+description: Configure keyboard shortcuts and customize Glide's keymap system
+---
+
+Glide's keymap system provides powerful, Vim-style keyboard shortcuts that are mode-aware and fully customizable. You can map key sequences to commands, functions, or even content scripts.
+
+## Basic Usage
+
+Keymaps are set using `glide.keymaps.set()` with three required parameters:
+
+```typescript
+glide.keymaps.set(mode, key_sequence, action);
+```
+
+### Simple Command Mapping
+
+Map a key sequence to an ex-command:
+
+```typescript
+// Reload page with Space+r in normal mode
+glide.keymaps.set("normal", "<leader>r", "reload");
+
+// Scroll to top with 'gg'
+glide.keymaps.set("normal", "gg", "scroll_top");
+
+// Close tab with Space+d
+glide.keymaps.set("normal", "<leader>d", "tab_close");
+```
+
+### Multi-Mode Mappings
+
+Apply the same mapping to multiple modes:
+
+```typescript
+// Ctrl+d scrolls down in both normal and insert modes
+glide.keymaps.set(["insert", "normal"], "<C-d>", "scroll_half_page_down");
+
+// Ctrl+j for next tab works in normal and insert
+glide.keymaps.set(["normal", "insert"], "<C-j>", "tab_next");
+```
+
+## Key Notation
+
+Glide uses Vim-style key notation with angle brackets for special keys:
+
+<Tabs>
+  <Tab title="Modifiers">
+    Modifiers are specified with angle bracket notation:
+    
+    - `<C-x>` - Control + x
+    - `<A-x>` - Alt + x (Option on macOS)
+    - `<S-x>` - Shift + x
+    - `<D-x>` - Command key (macOS only)
+    - `<M-x>` - Meta key
+    
+    **Multiple modifiers**:
+    ```typescript
+    glide.keymaps.set("normal", "<C-S-n>", "tab_new");
+    ```
+  </Tab>
+  
+  <Tab title="Special Keys">
+    Common special keys:
+    
+    - `<Esc>` - Escape
+    - `<Enter>` - Enter/Return
+    - `<Tab>` - Tab
+    - `<Space>` - Space
+    - `<Up>`, `<Down>`, `<Left>`, `<Right>` - Arrow keys
+    - `<PageUp>`, `<PageDown>` - Page navigation
+    - `<Home>`, `<End>` - Home/End
+    - `<F1>` through `<F12>` - Function keys
+    - `<lt>` - Literal `<` character
+    
+    ```typescript
+    glide.keymaps.set("command", "<Tab>", "commandline_focus_next");
+    glide.keymaps.set("hint", "<Esc>", "hints_remove");
+    ```
+  </Tab>
+  
+  <Tab title="Leader Key">
+    The leader key is a prefix for custom mappings:
+    
+    **Default**: `<Space>` (Space bar)
+    
+    **Usage**:
+    ```typescript
+    glide.keymaps.set("normal", "<leader>r", "reload");
+    glide.keymaps.set("normal", "<leader><leader>", "commandline_show tab ");
+    glide.keymaps.set("normal", "<leader>f", "hint --location=browser-ui");
+    ```
+    
+    **Customize the leader**:
+    ```typescript
+    glide.g.mapleader = ",";
+    // Now <leader>r means ,r
+    ```
+  </Tab>
+  
+  <Tab title="Regular Keys">
+    Single characters and sequences:
+    
+    ```typescript
+    // Single key
+    glide.keymaps.set("normal", "f", "hint");
+    
+    // Key sequence
+    glide.keymaps.set("normal", "gg", "scroll_top");
+    glide.keymaps.set("normal", "[[", "go_previous");
+    
+    // Uppercase (shift is implied)
+    glide.keymaps.set("normal", "G", "scroll_bottom");
+    ```
+  </Tab>
+</Tabs>
+
+## Action Types
+
+The right-hand side (action) of a keymap can be a command string, JavaScript function, or content script:
+
+### Command Strings
+
+Execute ex-commands with optional arguments:
+
+```typescript
+// Simple command
+glide.keymaps.set("normal", "<leader>r", "reload");
+
+// Command with arguments
+glide.keymaps.set("normal", "F", "hint --action=newtab-click");
+glide.keymaps.set("normal", "<leader>f", "hint --location=browser-ui");
+glide.keymaps.set("normal", "gi", "focusinput last");
+
+// Mode change with options
+glide.keymaps.set("normal", "i", "mode_change insert --automove=left");
+glide.keymaps.set("normal", "A", "mode_change insert --automove=endline");
+```
+
+### JavaScript Functions
+
+Execute custom JavaScript code:
+
+```typescript
+// Simple function
+glide.keymaps.set("normal", "<leader>n", () => {
+  console.log("Custom action executed!");
+});
+
+// Access Glide APIs
+glide.keymaps.set("normal", "<leader>u", () => {
+  const url = glide.ctx.url.href;
+  console.log("Current URL:", url);
+});
+
+// Async function
+glide.keymaps.set("normal", "<leader>p", async () => {
+  const result = await glide.process.execute("echo", ["Hello from Glide"]);
+  console.log(result.stdout);
+});
+```
+
+### Content Functions
+
+Execute code in the page context (content script):
+
+```typescript
+glide.keymaps.set("normal", "<leader>h", async ({ content }) => {
+  // Runs in the web page context
+  const title = await content.execute(() => {
+    return document.title;
+  });
+  console.log("Page title:", title);
+});
+```
+
+## Keymap Options
+
+Provide additional options as the fourth parameter:
+
+### Description
+
+Add human-readable descriptions for documentation:
+
+```typescript
+glide.keymaps.set(
+  "normal",
+  "<A-p>",
+  "tab_pin_toggle",
+  { description: "Pin or unpin the current tab" }
+);
+
+glide.keymaps.set(
+  "normal",
+  "gI",
+  () => glide.hints.show({ 
+    auto_activate: true, 
+    editable: true, 
+    pick: hinting.pickers.biggest_area 
+  }),
+  { description: "Focus the largest editable element on the page" }
+);
+```
+
+### Retain Key Display
+
+Keep showing the key sequence in the UI after execution:
+
+```typescript
+// Show 'd' in status while waiting for motion
+glide.keymaps.set(
+  "normal",
+  "d",
+  "mode_change op-pending --operator=d",
+  { retain_key_display: true }
+);
+```
+
+## Platform-Specific Keymaps
+
+Create different mappings based on the operating system:
+
+```typescript
+// From the default keymaps
+if (glide.ctx.os === "macosx") {
+  glide.keymaps.set(["normal", "insert"], "<C-h>", "back");
+  glide.keymaps.set(["normal", "insert"], "<C-l>", "forward");
+} else {
+  // Linux/Windows - avoid <C-l> conflict
+  glide.keymaps.set(["normal", "insert"], "<A-h>", "back");
+  glide.keymaps.set(["normal", "insert"], "<A-l>", "forward");
+}
+```
+
+Available platforms: `"linux"`, `"win"`, `"macosx"`, `"ios"`, `"android"`, `"other"`
+
+## Removing Keymaps
+
+Delete existing keymaps:
+
+```typescript
+// Remove a specific mapping
+glide.keymaps.del("normal", "<leader>r");
+
+// Remove from multiple modes
+glide.keymaps.del(["normal", "insert"], "<C-j>");
+```
+
+<Warning>
+  Removing a keymap that doesn't exist will throw an error. Use try-catch if you're unsure:
+  
+  ```typescript
+  try {
+    glide.keymaps.del("normal", "<leader>x");
+  } catch (e) {
+    console.log("Keymap didn't exist");
+  }
+  ```
+</Warning>
+
+## Listing Keymaps
+
+Inspect currently defined keymaps:
+
+```typescript
+// List all keymaps
+const all = glide.keymaps.list();
+
+// List keymaps for specific mode
+const normal_maps = glide.keymaps.list("normal");
+
+// List for multiple modes
+const maps = glide.keymaps.list(["normal", "insert"]);
+
+// Inspect a keymap
+console.log(normal_maps[0]);
+// {
+//   mode: "normal",
+//   lhs: "gg",
+//   rhs: "scroll_top",
+//   description: undefined
+// }
+```
+
+## Default Keymaps Reference
+
+Here are some commonly used default keymaps from `plugins/keymaps.mts`:
+
+<Tabs>
+  <Tab title="Navigation">
+    ```typescript
+    glide.keymaps.set("normal", "gg", "scroll_top");
+    glide.keymaps.set("normal", "G", "scroll_bottom");
+    glide.keymaps.set(["insert", "normal"], "<C-d>", "scroll_half_page_down");
+    glide.keymaps.set(["normal", "insert"], "<C-u>", "scroll_half_page_up");
+    
+    glide.keymaps.set("normal", "h", "caret_move left");
+    glide.keymaps.set("normal", "l", "caret_move right");
+    glide.keymaps.set("normal", "j", "caret_move down");
+    glide.keymaps.set("normal", "k", "caret_move up");
+    ```
+  </Tab>
+  
+  <Tab title="Hints">
+    ```typescript
+    glide.keymaps.set("normal", "f", "hint");
+    glide.keymaps.set("normal", "F", "hint --action=newtab-click");
+    glide.keymaps.set("normal", "<leader>f", "hint --location=browser-ui");
+    glide.keymaps.set("hint", "<Esc>", "hints_remove");
+    
+    glide.keymaps.set("normal", "gi", "focusinput last");
+    glide.keymaps.set("normal", "gI", () => 
+      glide.hints.show({ 
+        auto_activate: true, 
+        editable: true, 
+        pick: hinting.pickers.biggest_area 
+      })
+    );
+    ```
+  </Tab>
+  
+  <Tab title="Tabs">
+    ```typescript
+    glide.keymaps.set("normal", "<leader>d", "tab_close");
+    glide.keymaps.set(["normal", "insert"], "<C-j>", "tab_next");
+    glide.keymaps.set(["normal", "insert"], "<C-k>", "tab_prev");
+    glide.keymaps.set("normal", "<A-p>", "tab_pin_toggle");
+    glide.keymaps.set("normal", "yt", "tab_duplicate");
+    ```
+  </Tab>
+  
+  <Tab title="Page Actions">
+    ```typescript
+    glide.keymaps.set("normal", "<leader>r", "reload");
+    glide.keymaps.set("normal", "<leader>R", "reload_hard");
+    glide.keymaps.set("normal", "yy", "url_yank");
+    
+    glide.keymaps.set("normal", "[[", "go_previous");
+    glide.keymaps.set("normal", "]]", "go_next");
+    glide.keymaps.set("normal", "gu", "go_up");
+    glide.keymaps.set("normal", "gU", "go_to_root");
+    ```
+  </Tab>
+  
+  <Tab title="Mode Switching">
+    ```typescript
+    glide.keymaps.set("normal", "i", "mode_change insert --automove=left");
+    glide.keymaps.set("normal", "a", "mode_change insert");
+    glide.keymaps.set("normal", "A", "mode_change insert --automove=endline");
+    
+    glide.keymaps.set(["insert", "visual", "op-pending"], "<Esc>", "mode_change normal");
+    glide.keymaps.set(["insert", "visual", "op-pending"], "<C-[>", "mode_change normal");
+    
+    glide.keymaps.set(["normal", "insert", "visual"], "<S-Esc>", "mode_change ignore");
+    glide.keymaps.set("ignore", "<S-Esc>", "mode_change normal");
+    ```
+  </Tab>
+  
+  <Tab title="Command Line">
+    ```typescript
+    glide.keymaps.set("normal", ":", "commandline_show");
+    glide.keymaps.set("normal", "<leader><leader>", "commandline_show tab ");
+    
+    glide.keymaps.set("command", "<Esc>", "commandline_toggle");
+    glide.keymaps.set("command", "<Tab>", "commandline_focus_next");
+    glide.keymaps.set("command", "<S-Tab>", "commandline_focus_back");
+    glide.keymaps.set("command", "<Enter>", "commandline_accept");
+    ```
+  </Tab>
+</Tabs>
+
+## Mapping Timeout
+
+Control how long Glide waits for the next key in a sequence:
+
+```typescript
+// Wait 500ms instead of default 200ms
+glide.o.mapping_timeout = 500;
+```
+
+<Info>
+  The mapping timeout only applies in **insert mode**. In normal mode, partial sequences wait indefinitely.
+</Info>
+
+## Advanced: Buffer-Scoped Keymaps
+
+Create keymaps that only apply to the current buffer (tab):
+
+```typescript
+// Only active in the current tab
+glide.buf.keymaps.set("normal", "<leader>t", () => {
+  console.log("This only works in this tab!");
+});
+
+// Remove buffer keymap
+glide.buf.keymaps.del("normal", "<leader>t");
+```
+
+## Source Code References
+
+<Accordion title="Key implementation files">
+  - **Keymap API**: `src/glide/browser/base/content/browser-api.mts:303-313`
+  - **Default keymaps**: `src/glide/browser/base/content/plugins/keymaps.mts`
+  - **Key notation parser**: `src/glide/browser/base/content/utils/keys.mts`
+  - **Keymap trie structure**: `src/glide/browser/base/content/utils/keys.mts:30-136`
+</Accordion>

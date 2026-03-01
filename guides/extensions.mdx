@@ -1,0 +1,396 @@
+---
+title: Extensions and Addons
+description: Install and manage browser extensions in Glide
+---
+
+# Extensions and Addons
+
+Glide provides a programmatic API for installing and managing Firefox extensions (addons) directly from your config file.
+
+## Installation
+
+### Install from URL
+
+Install extensions from Mozilla Addons (AMO) or any XPI URL:
+
+```typescript
+glide.autocmds.create("ConfigLoaded", async () => {
+  await glide.addons.install(
+    "https://addons.mozilla.org/firefox/downloads/file/..."
+  );
+});
+```
+
+### Get XPI URL
+
+To find an extension's XPI URL:
+
+1. Visit the extension page on [addons.mozilla.org](https://addons.mozilla.org)
+2. Right-click "Add to Firefox"
+3. Select "Copy Link"
+
+### Installation Behavior
+
+By default, `glide.addons.install()` only installs if the addon isn't already present:
+
+```typescript
+const result = await glide.addons.install(xpi_url);
+console.log(result.cached); // true if already installed
+```
+
+### Force Reinstall
+
+Reinstall even if already present:
+
+```typescript
+const result = await glide.addons.install(xpi_url, { force: true });
+console.log(result.cached); // always false
+```
+
+### Installation Options
+
+```typescript
+interface AddonInstallOptions {
+  /** Force reinstall even if addon is already installed */
+  force?: boolean;
+  
+  /** Allow the extension to run in private browsing windows */
+  private_browsing_allowed?: boolean;
+}
+```
+
+Example:
+
+```typescript
+await glide.addons.install(xpi_url, {
+  force: true,
+  private_browsing_allowed: true
+});
+```
+
+## Managing Addons
+
+### List Installed Addons
+
+Get all installed addons:
+
+```typescript
+const addons = await glide.addons.list();
+
+for (const addon of addons) {
+  console.log(`${addon.name} (${addon.id})`);
+  console.log(`  Type: ${addon.type}`);
+  console.log(`  Active: ${addon.active}`);
+}
+```
+
+### Filter by Type
+
+Filter addons by type:
+
+```typescript
+// Get only extensions
+const extensions = await glide.addons.list("extension");
+
+// Get multiple types
+const items = await glide.addons.list(["extension", "locale", "dictionary"]);
+```
+
+Available types:
+- `"extension"`
+- `"locale"`
+- `"dictionary"`
+- `"theme"`
+
+### Addon Object
+
+The addon object provides:
+
+```typescript
+interface Addon {
+  id: string;           // Extension ID
+  name: string;         // Display name
+  type: AddonType;      // "extension", "theme", etc.
+  active: boolean;      // Whether addon is enabled
+  
+  // Methods
+  uninstall(): Promise<void>;
+  reload(): Promise<void>;
+}
+```
+
+### Uninstall Addon
+
+```typescript
+glide.keymaps.set("normal", "<leader>xu", async () => {
+  const addons = await glide.addons.list("extension");
+  const ublock = addons.find(a => a.name.includes("uBlock"));
+  
+  if (ublock) {
+    await ublock.uninstall();
+    console.log("Uninstalled uBlock Origin");
+  }
+});
+```
+
+### Reload Addon
+
+Restart an extension (useful for development):
+
+```typescript
+const addon = await glide.addons.install(xpi_url);
+await addon.reload();
+```
+
+## Practical Examples
+
+### Essential Extensions
+
+Install a curated set of extensions:
+
+```typescript
+const EXTENSIONS = [
+  {
+    name: "uBlock Origin",
+    url: "https://addons.mozilla.org/firefox/downloads/file/..."
+  },
+  {
+    name: "Bitwarden",
+    url: "https://addons.mozilla.org/firefox/downloads/file/...",
+    private_browsing: true
+  }
+];
+
+glide.autocmds.create("ConfigLoaded", async () => {
+  for (const ext of EXTENSIONS) {
+    try {
+      const result = await glide.addons.install(ext.url, {
+        private_browsing_allowed: ext.private_browsing ?? false
+      });
+      
+      if (!result.cached) {
+        console.log(`Installed ${ext.name}`);
+      }
+    } catch (err) {
+      console.error(`Failed to install ${ext.name}:`, err);
+    }
+  }
+});
+```
+
+### Conditional Installation
+
+Install extensions based on conditions:
+
+```typescript
+glide.autocmds.create("ConfigLoaded", async () => {
+  // Only install dev tools on localhost
+  if (glide.ctx.os === "linux") {
+    await glide.addons.install(
+      "https://addons.mozilla.org/firefox/downloads/file/..."
+    );
+  }
+});
+```
+
+### Check Installation Status
+
+```typescript
+glide.keymaps.set("normal", "<leader>xi", async () => {
+  const addons = await glide.addons.list("extension");
+  const names = addons.map(a => a.name).join("\n");
+  console.log("Installed extensions:\n" + names);
+});
+```
+
+### Development Workflow
+
+Reload extension during development:
+
+```typescript
+glide.keymaps.set("normal", "<leader>xr", async () => {
+  const addons = await glide.addons.list();
+  const dev_addon = addons.find(a => a.id === "my-extension@example.com");
+  
+  if (dev_addon) {
+    await dev_addon.reload();
+    console.log("Extension reloaded");
+  }
+});
+```
+
+### Bulk Operations
+
+```typescript
+glide.keymaps.set("normal", "<leader>xd", async () => {
+  const addons = await glide.addons.list("extension");
+  
+  // Disable all extensions
+  for (const addon of addons) {
+    if (addon.active) {
+      await addon.disable?.();
+    }
+  }
+});
+```
+
+## WebExtension API Access
+
+Glide provides access to the WebExtension `browser` API in your config:
+
+```typescript
+glide.keymaps.set("normal", "<leader>td", async () => {
+  await browser.theme.update({
+    colors: { frame: "#1a1a1a" }
+  });
+});
+```
+
+### Differences from Standard API
+
+1. **All methods return Promises**
+   ```typescript
+   // Standard WebExtension
+   browser.tabs.query({...}).then(...);
+   
+   // Glide (same, but enforced)
+   await browser.tabs.query({...});
+   ```
+
+2. **Some APIs not supported**
+   - `browser.runtime.connect()` and Port APIs
+   - Some chrome-specific extensions
+
+### Common WebExtension Operations
+
+#### Theme Management
+
+```typescript
+// Update theme
+await browser.theme.update({
+  colors: {
+    frame: "#1a1a1a",
+    tab_background_text: "#ffffff",
+    toolbar: "#2d2d2d"
+  }
+});
+
+// Reset theme
+await browser.theme.reset();
+```
+
+#### Bookmark Management
+
+```typescript
+// Create bookmark
+await browser.bookmarks.create({
+  title: "Example",
+  url: "https://example.com"
+});
+
+// Search bookmarks
+const results = await browser.bookmarks.search("example");
+```
+
+#### Download Management
+
+```typescript
+glide.keymaps.set("normal", "<leader>d", async () => {
+  await browser.downloads.download({
+    url: glide.ctx.url.href,
+    filename: "page.html"
+  });
+});
+```
+
+## Restrictions
+
+The `browser` API has limitations similar to standard WebExtensions:
+
+<Warning>
+The API will not function on protected pages like `about:config`, `about:addons`, or `addons.mozilla.org`. This will be addressed in future versions.
+</Warning>
+
+## Advanced Patterns
+
+### Addon State Persistence
+
+```typescript
+declare global {
+  interface GlideGlobals {
+    addon_ids?: Set<string>;
+  }
+}
+
+glide.g.addon_ids = new Set();
+
+glide.autocmds.create("ConfigLoaded", async () => {
+  const addons = await glide.addons.list();
+  
+  for (const addon of addons) {
+    glide.g.addon_ids!.add(addon.id);
+  }
+});
+```
+
+### Version-Specific Extensions
+
+```typescript
+glide.autocmds.create("ConfigLoaded", async () => {
+  const version = parseInt(glide.ctx.firefox_version.split(".")[0]);
+  
+  if (version >= 130) {
+    // Install extensions that require Firefox 130+
+    await glide.addons.install("https://...");
+  }
+});
+```
+
+### Extension Health Check
+
+```typescript
+glide.keymaps.set("normal", "<leader>xc", async () => {
+  const addons = await glide.addons.list("extension");
+  const inactive = addons.filter(a => !a.active);
+  
+  if (inactive.length > 0) {
+    console.log("Inactive extensions:");
+    for (const addon of inactive) {
+      console.log(`  - ${addon.name}`);
+    }
+  } else {
+    console.log("All extensions active");
+  }
+});
+```
+
+## Troubleshooting
+
+### Installation Fails
+
+Ensure the XPI URL is valid and accessible:
+
+```typescript
+try {
+  await glide.addons.install(xpi_url);
+} catch (err) {
+  console.error("Installation failed:", err);
+}
+```
+
+### Verify Installation
+
+```typescript
+const addons = await glide.addons.list();
+const installed = addons.find(a => a.id === "addon-id@example.com");
+
+if (installed) {
+  console.log(`${installed.name} is installed`);
+}
+```
+
+## See Also
+
+- [Customization](/guides/customization) - Browser appearance and behavior
+- [Autocmds](/guides/autocmds) - Automated extension management
+- [MDN WebExtensions API](https://developer.mozilla.org/docs/Mozilla/Add-ons/WebExtensions/API)

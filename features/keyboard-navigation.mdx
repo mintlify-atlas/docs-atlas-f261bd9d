@@ -1,0 +1,333 @@
+---
+title: Keyboard Navigation
+description: Master keyboard-driven navigation in Glide Browser
+---
+
+Glide Browser provides comprehensive keyboard navigation capabilities, allowing you to browse the web without touching your mouse. This includes Vim-like motions, page navigation, and custom keybindings.
+
+## Motion System
+
+Glide implements a subset of Vim's motion system for navigating within editable text fields.
+
+### Character Motions
+
+Basic character-level movement:
+
+```typescript
+// Arrow-like navigation
+glide.keymaps.set("normal", "h", "caret_move left");
+glide.keymaps.set("normal", "l", "caret_move right");
+glide.keymaps.set("normal", "j", "caret_move down");
+glide.keymaps.set("normal", "k", "caret_move up");
+```
+
+**Available directions**: `left`, `right`, `up`, `down`, `endline`
+
+### Word Motions
+
+Navigate by words within text fields:
+
+```typescript
+// Word-forward motions
+glide.keymaps.set(["normal", "visual"], "w", "motion w"); // Next word
+glide.keymaps.set(["normal", "visual"], "W", "motion W"); // Next WORD
+glide.keymaps.set("normal", "e", "motion e");            // End of word
+
+// Word-backward motions
+glide.keymaps.set("normal", "b", "motion b");            // Previous word
+glide.keymaps.set("normal", "B", "motion B");            // Previous WORD
+```
+
+### Line Motions
+
+Jump to specific positions within a line:
+
+```typescript
+glide.keymaps.set("normal", "0", "motion 0");  // Start of line
+glide.keymaps.set("normal", "^", "motion ^");  // First non-blank character
+glide.keymaps.set("normal", "$", "motion $");  // End of line
+```
+
+### Supported Motions
+
+The complete list of supported motions is defined in `motions.mts:36`:
+
+- `w` - Forward to the start of next word
+- `W` - Forward to the start of next WORD (space-separated)
+- `e` - Forward to the end of word
+- `b` - Backward to the start of previous word
+- `B` - Backward to the start of previous WORD
+- `I` - Jump to first character of line
+- `0` - Jump to start of line
+- `^` - Jump to first non-blank character
+- `$` - Jump to end of line
+- `{` - Jump to previous paragraph
+- `}` - Jump to next paragraph
+- `s` - Substitute character
+- `v` - Enter visual mode
+- `vh`, `vl`, `vd`, `vc` - Visual mode motions
+- `x`, `X` - Delete character
+- `o` - Open new line
+
+## Page Navigation
+
+Navigate within and between web pages:
+
+### Scrolling
+
+```typescript
+// Scroll to top/bottom
+glide.keymaps.set("normal", "gg", "scroll_top");
+glide.keymaps.set("normal", "G", "scroll_bottom");
+
+// Page scrolling
+glide.keymaps.set(["insert", "normal"], "<C-d>", "scroll_half_page_down");
+glide.keymaps.set(["normal", "insert"], "<C-u>", "scroll_half_page_up");
+```
+
+**Available scroll commands**:
+- `scroll_top` - Scroll to the top of the page
+- `scroll_bottom` - Scroll to the bottom of the page
+- `scroll_page_down` - Scroll down one full page
+- `scroll_page_up` - Scroll up one full page
+- `scroll_half_page_down` - Scroll down half a page
+- `scroll_half_page_up` - Scroll up half a page
+
+### URL Navigation
+
+```typescript
+// Navigate URL hierarchy
+glide.keymaps.set("normal", "gu", "go_up");      // Go up one level
+glide.keymaps.set("normal", "gU", "go_to_root"); // Go to root domain
+
+// Follow page links
+glide.keymaps.set("normal", "[[", "go_previous"); // Previous page link
+glide.keymaps.set("normal", "]]", "go_next");     // Next page link
+```
+
+#### URL Hierarchy Navigation
+
+The `go_up` command removes the last segment from the URL path:
+
+```
+https://example.com/foo/bar/baz
+  → go_up → https://example.com/foo/bar
+  → go_up → https://example.com/foo
+  → go_up → https://example.com
+```
+
+#### Next/Previous Page Detection
+
+The `go_next` and `go_previous` commands search for links using:
+
+1. **`rel` attribute**: Checks for `rel="next"` or `rel="prev"`
+2. **Link text patterns**: Searches for common pagination text
+
+You can customize the search patterns:
+
+```typescript
+// Default patterns for next page
+glide.o.go_next_patterns = ["next", ">", "→", "newer"];
+
+// Default patterns for previous page  
+glide.o.go_previous_patterns = ["prev", "previous", "<", "←", "older"];
+```
+
+### Focus Management
+
+```typescript
+// Focus the last input on the page
+glide.keymaps.set("normal", "gi", "focusinput last");
+
+// Focus the largest editable element
+glide.keymaps.set(
+  "normal",
+  "gI",
+  () => glide.hints.show({ 
+    auto_activate: true, 
+    editable: true,
+    pick: hinting.pickers.biggest_area 
+  })
+);
+
+// Blur the active element
+glide.keymaps.set(["normal", "insert"], "<C-,>", "blur");
+```
+
+## History Navigation
+
+Navigate browser history with keyboard shortcuts:
+
+```typescript
+if (glide.ctx.os === "macosx") {
+  glide.keymaps.set(["normal", "insert"], "<C-h>", "back");
+  glide.keymaps.set(["normal", "insert"], "<C-l>", "forward");
+} else {
+  glide.keymaps.set(["normal", "insert"], "<A-h>", "back");
+  glide.keymaps.set(["normal", "insert"], "<A-l>", "forward");
+}
+```
+
+**Available commands**:
+- `back` - Go back one page in history (repeatable)
+- `forward` - Go forward one page in history (repeatable)
+
+### Jumplist Navigation
+
+Glide maintains a jumplist similar to Vim:
+
+```typescript
+// Navigate through jumplist
+glide.keymaps.set(["normal", "insert"], "<C-o>", "jumplist_back");
+glide.keymaps.set(["normal", "insert"], "<C-i>", "jumplist_forward");
+```
+
+## Tab Navigation
+
+Switch between and manage browser tabs:
+
+```typescript
+// Switch tabs
+glide.keymaps.set(["normal", "insert"], "<C-j>", "tab_next");
+glide.keymaps.set(["normal", "insert"], "<C-k>", "tab_prev");
+
+// Close, duplicate, reopen
+glide.keymaps.set("normal", "<leader>d", "tab_close");
+glide.keymaps.set("normal", "yt", "tab_duplicate");
+
+// Pin/unpin tabs
+glide.keymaps.set("normal", "<A-p>", "tab_pin_toggle");
+```
+
+**Tab commands**:
+- `tab <index>` - Switch to tab at index
+- `tab_new [url]` - Create new tab
+- `tab_close` - Close current tab
+- `tab_next` - Next tab (wraps around)
+- `tab_prev` - Previous tab (wraps around)
+- `tab_pin` - Pin current tab
+- `tab_unpin` - Unpin current tab
+- `tab_pin_toggle` - Toggle pin state
+- `tab_reopen` - Reopen last closed tab
+- `tab_duplicate` - Duplicate current tab
+
+## Hint Mode
+
+Click elements using keyboard shortcuts:
+
+```typescript
+// Show hints for links
+glide.keymaps.set("normal", "f", "hint");
+
+// Open in new tab
+glide.keymaps.set("normal", "F", "hint --action=newtab-click");
+
+// Show hints for browser UI elements
+glide.keymaps.set("normal", "<leader>f", "hint --location=browser-ui");
+
+// Exit hint mode
+glide.keymaps.set("hint", "<Esc>", "hints_remove");
+```
+
+### Advanced Hint Usage
+
+```typescript
+// Yank link URLs
+glide.keymaps.set("normal", "yf", () =>
+  glide.hints.show({
+    selector: "[href]",
+    async action({ content }) {
+      let href = await content.execute((target) => 
+        (target as HTMLAnchorElement).href
+      );
+      if (href.startsWith("mailto:")) {
+        href = href.slice(7);
+      }
+      await navigator.clipboard.writeText(href);
+    },
+  })
+);
+```
+
+## Reload and Refresh
+
+```typescript
+// Standard reload
+glide.keymaps.set("normal", "<leader>r", "reload");
+
+// Hard reload (bypass cache)
+glide.keymaps.set("normal", "<leader>R", "reload_hard");
+```
+
+## Editing Operations
+
+Vim-like editing within text fields:
+
+```typescript
+// Undo/redo
+glide.keymaps.set("normal", "u", "undo");
+
+// Replace character
+glide.keymaps.set("normal", "r", "r");
+
+// Delete/change with motions
+glide.keymaps.set("normal", "d", "mode_change op-pending --operator=d");
+glide.keymaps.set("normal", "c", "mode_change op-pending --operator=c");
+```
+
+## Customizing Keybindings
+
+Define your own keyboard navigation:
+
+```typescript
+// Simple command mapping
+glide.keymaps.set("normal", "<leader>q", "quit");
+
+// Function callback
+glide.keymaps.set("normal", "<leader>t", () => {
+  console.log("Custom action");
+});
+
+// Multi-mode mapping
+glide.keymaps.set(["normal", "insert"], "<C-s>", async () => {
+  // Custom save logic
+});
+
+// Remove a mapping
+glide.keymaps.del("normal", "f");
+```
+
+## Viewing All Keymaps
+
+List all currently defined keybindings:
+
+```typescript
+// Show all mappings in browser
+glide.excmds.execute("map");
+
+// Programmatically access mappings
+const normalMappings = glide.keymaps.list("normal");
+const allMappings = glide.keymaps.list();
+```
+
+<Info>
+  All built-in keybindings are defined in `plugins/keymaps.mts:14-148`. You can override any of them in your config.
+</Info>
+
+## Key Notation
+
+Glide uses Vim-style key notation:
+
+- `<C-a>` - Ctrl + a
+- `<A-a>` - Alt + a  
+- `<S-a>` - Shift + a
+- `<D-a>` - Command + a (macOS)
+- `<leader>` - Leader key (default: Space)
+- `<CR>` - Enter/Return
+- `<Tab>` - Tab key
+- `<Esc>` - Escape key
+- `<Space>` - Space bar
+
+<Tip>
+  The leader key can be customized: `glide.g.mapleader = "<Space>";`
+</Tip>

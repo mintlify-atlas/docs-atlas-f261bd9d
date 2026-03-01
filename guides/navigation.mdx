@@ -1,0 +1,233 @@
+---
+title: Navigation Patterns and Shortcuts
+description: Master keyboard-driven navigation in Glide Browser
+---
+
+# Navigation Patterns and Shortcuts
+
+Glide Browser provides powerful keyboard-driven navigation patterns inspired by Vim. This guide covers essential navigation workflows and shortcuts.
+
+## Basic Navigation
+
+### Scrolling
+
+Glide uses Vim-style motion keys for scrolling:
+
+| Key | Action |
+|-----|--------|
+| `j` | Scroll down |
+| `k` | Scroll up |
+| `h` | Scroll left |
+| `l` | Scroll right |
+| `<C-d>` | Scroll down half a page |
+| `<C-u>` | Scroll up half a page |
+| `gg` | Scroll to top of page |
+| `G` | Scroll to bottom of page |
+
+<Note>
+The scroll implementation can be configured with `glide.o.scroll_implementation`. Set it to `"keys"` (default) or `"legacy"` depending on your preference.
+</Note>
+
+### Jumplist Navigation
+
+Navigate through your browsing history across tabs:
+
+| Key | Action |
+|-----|--------|
+| `<C-o>` | Jump to previous location |
+| `<C-i>` | Jump to next location |
+
+The jumplist tracks:
+- URL changes within the same tab
+- Tab switches
+- History navigation (back/forward)
+
+```typescript
+// Configure jumplist size
+glide.o.jumplist_max_entries = 100; // default
+```
+
+## History Navigation
+
+### Browser History
+
+| Key | Action |
+|-----|--------|
+| `H` | Navigate back in history |
+| `L` | Navigate forward in history |
+
+### Page Navigation
+
+Navigate to next/previous pages using link detection:
+
+```typescript
+// Customize patterns for next/previous page detection
+glide.o.go_next_patterns = ["next", "more", "newer", ">", "›", "→", "»", "≫", ">>"];
+glide.o.go_previous_patterns = ["prev", "previous", "back", "older", "<", "‹", "←", "«", "≪", "<<"];
+```
+
+Use the `:go_next` and `:go_previous` excmds or map them to keys:
+
+```typescript
+glide.keymaps.set("normal", "]]>", "go_next");
+glide.keymaps.set("normal", "[[", "go_previous");
+```
+
+## URL Navigation
+
+### Parent Directory
+
+Navigate up URL hierarchies:
+
+```typescript
+glide.keymaps.set("normal", "gu", async () => {
+  const url = new URL(glide.ctx.url);
+  const parts = url.pathname.split("/").filter(Boolean);
+  if (parts.length > 0) {
+    parts.pop();
+    url.pathname = "/" + parts.join("/");
+    await browser.tabs.update({ url: url.toString() });
+  }
+});
+```
+
+### Root Domain
+
+```typescript
+glide.keymaps.set("normal", "gU", async () => {
+  const url = new URL(glide.ctx.url);
+  url.pathname = "/";
+  await browser.tabs.update({ url: url.toString() });
+});
+```
+
+## Site-Specific Navigation
+
+Create custom navigation for specific websites using autocmds:
+
+```typescript
+// GitHub: navigate to Issues page
+glide.autocmds.create("UrlEnter", { hostname: "github.com" }, () => {
+  glide.buf.keymaps.set("normal", "<leader>gi", async () => {
+    const url = glide.ctx.url;
+    const parts = url.pathname.split("/").filter(Boolean);
+    assert(parts.length >= 2, "Not a repository page");
+    url.pathname = `/${parts[0]}/${parts[1]}/issues`;
+    await browser.tabs.update({ url: url.toString() });
+  });
+});
+```
+
+## Focus Navigation
+
+### Browser UI
+
+| Key | Action |
+|-----|--------|
+| `<C-l>` | Focus URL bar |
+| `<Esc>` | Return focus to page |
+
+### Page Elements
+
+Use hints mode for keyboard-driven element focusing:
+
+```typescript
+// Focus editable elements
+glide.keymaps.set("normal", "gi", () => {
+  glide.hints.show({ editable: true, auto_activate: true });
+});
+```
+
+## Custom Navigation Mappings
+
+### Quick Tab Switching
+
+```typescript
+glide.keymaps.set("normal", "gt", async () => {
+  const tab = await glide.tabs.get_first({ url: "example.com" });
+  if (tab?.id) {
+    await browser.tabs.update(tab.id, { active: true });
+  }
+}, { description: "Go to example.com tab" });
+```
+
+### Smart Home Navigation
+
+```typescript
+glide.keymaps.set("normal", "gh", async () => {
+  const homepage = glide.prefs.get("browser.startup.homepage") as string;
+  await browser.tabs.update({ url: homepage });
+});
+```
+
+## Advanced Patterns
+
+### Context-Aware Navigation
+
+Different navigation based on URL:
+
+```typescript
+glide.autocmds.create("UrlEnter", /./, ({ url }) => {
+  const current = new URL(url);
+  
+  if (current.hostname.includes("youtube.com")) {
+    glide.buf.keymaps.set("normal", "<leader>n", async () => {
+      // Navigate to next video in playlist
+      await glide.content.execute(() => {
+        document.querySelector<HTMLAnchorElement>('.ytp-next-button')?.click();
+      }, { tab_id: await glide.tabs.active() });
+    });
+  }
+});
+```
+
+### Multi-Step Navigation
+
+```typescript
+glide.keymaps.set("normal", "<leader>gh", async () => {
+  // Open GitHub notifications in new tab
+  const tab = await browser.tabs.create({
+    url: "https://github.com/notifications",
+    active: true
+  });
+});
+```
+
+## Accessibility
+
+### Keyboard-Only Navigation
+
+Glide ensures all navigation is accessible via keyboard:
+
+- Use `f` for hint mode to click any element
+- Use `F` for hint mode in new tab
+- Use `<leader>f` for hints in browser UI
+
+### Focus Indicators
+
+Customize focus styles for better visibility:
+
+```typescript
+glide.styles.add(css`
+  :focus-visible {
+    outline: 2px solid #0066cc !important;
+    outline-offset: 2px !important;
+  }
+`);
+```
+
+## Performance Tips
+
+<Tip>
+The jumplist is stored per-window and automatically cleans up deleted tabs. Configure `glide.o.jumplist_max_entries` to control memory usage.
+</Tip>
+
+<Warning>
+Scroll implementations using `"keys"` may behave unexpectedly on websites that override arrow key events. Switch to `"legacy"` if you encounter issues.
+</Warning>
+
+## See Also
+
+- [Tab Management](/guides/tabs) - Managing multiple tabs
+- [Hints](/concepts/hints) - Element-level navigation
+- [Autocmds](/guides/autocmds) - Event-driven customization

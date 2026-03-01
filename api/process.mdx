@@ -1,0 +1,283 @@
+---
+title: "glide.process"
+description: "Spawn and manage external processes"
+---
+
+The `glide.process` API provides methods for spawning and managing external processes from within Glide.
+
+## Methods
+
+### spawn()
+
+Spawn a new process. The given `command` can either be the name of a binary in the `PATH` or an absolute path to a binary file.
+
+```typescript
+const proc = await glide.process.spawn(
+  command: string,
+  args?: string[] | null | undefined,
+  opts?: glide.SpawnOptions
+): Promise<glide.Process>
+```
+
+<ParamField path="command" type="string" required>
+  The command to execute. Can be a binary name in `PATH` or an absolute path.
+</ParamField>
+
+<ParamField path="args" type="string[]">
+  Arguments to pass to the command.
+</ParamField>
+
+<ParamField path="opts" type="glide.SpawnOptions">
+  Options for spawning the process.
+
+  <Expandable title="SpawnOptions properties">
+    <ParamField path="cwd" type="string">
+      Working directory for the process. Supports tilde expansion (`~`).
+    </ParamField>
+
+    <ParamField path="env" type="Record<string, string | null>">
+      Environment variables to set. Set a value to `null` to delete it from the environment.
+    </ParamField>
+
+    <ParamField path="extend_env" type="boolean" default={true}>
+      If `true`, merge with existing environment variables. If `false`, only use provided `env`.
+    </ParamField>
+
+    <ParamField path="check_exit_code" type="boolean" default={true}>
+      If `true`, throw an error for non-zero exit codes.
+    </ParamField>
+
+    <ParamField path="success_codes" type="number[]">
+      Array of exit codes to consider successful. Overrides `check_exit_code` for specified codes.
+    </ParamField>
+
+    <ParamField path="stderr" type="'pipe' | 'stdout'" default="pipe">
+      Control where stderr output is sent:
+      - `"pipe"`: stderr accessible through `process.stderr`
+      - `"stdout"`: stderr mixed with stdout
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ResponseField name="Process" type="glide.Process">
+  A process object with methods to interact with the spawned process.
+
+  <Expandable title="Process properties">
+    <ResponseField name="pid" type="number">
+      The process ID.
+    </ResponseField>
+
+    <ResponseField name="exit_code" type="number | null">
+      The process exit code. `null` if it hasn't exited yet.
+    </ResponseField>
+
+    <ResponseField name="stdout" type="glide.ProcessReadStream">
+      A ReadableStream of strings from stdout with helper methods:
+      - `text()`: Returns all stdout as a string (when awaited) or yields chunks (when iterated)
+      - `lines()`: Returns array of lines (when awaited) or yields lines (when iterated)
+    </ResponseField>
+
+    <ResponseField name="stderr" type="glide.ProcessReadStream | null">
+      A ReadableStream of strings from stderr. `null` if `stderr: 'stdout'` option was set.
+    </ResponseField>
+
+    <ResponseField name="stdin" type="glide.ProcessStdinPipe">
+      Write to the process's stdin pipe:
+      - `write(data)`: Write string or binary data
+      - `close()`: Close stdin and signal EOF
+    </ResponseField>
+
+    <ResponseField name="wait" type="() => Promise<glide.CompletedProcess>">
+      Wait for the process to exit.
+    </ResponseField>
+
+    <ResponseField name="kill" type="(timeout?: number) => Promise<glide.CompletedProcess>">
+      Kill the process. Sends SIGTERM, then SIGKILL after timeout (default 300ms).
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<Note>
+  On macOS, the `PATH` environment variable may not be set to what you expect, as applications don't inherit your shell environment. You can update it with `glide.env.set("PATH", "/usr/bin:/usr/local/bin")`.
+</Note>
+
+**Example: Basic process spawning**
+
+```typescript
+const proc = await glide.process.spawn('ls', ['-la']);
+const output = await proc.stdout.text();
+console.log(output);
+```
+
+**Example: Open terminal with editor**
+
+```typescript
+const proc = await glide.process.spawn(
+  'kitty',
+  ['nvim', 'glide.ts'],
+  { cwd: '~/.dotfiles/glide' }
+);
+console.log('Opened kitty with pid', proc.pid);
+```
+
+**Example: Custom environment variables**
+
+```typescript
+const proc = await glide.process.spawn('printenv', [], {
+  env: { 'MY_VAR': 'custom_value' }
+});
+const output = await proc.stdout.text();
+```
+
+**Example: Process with stdin interaction**
+
+```typescript
+const proc = await glide.process.spawn('cat');
+await proc.stdin.write('Hello from stdin!\n');
+proc.stdin.close();
+
+const reader = proc.stdout.getReader();
+const { value } = await reader.read();
+console.log(value); // "Hello from stdin!\n"
+
+await proc.wait();
+```
+
+**Example: Stream processing**
+
+```typescript
+const proc = await glide.process.spawn('sh', [
+  '-c',
+  'echo first; sleep 0.1; echo second'
+]);
+
+for await (const line of proc.stdout.lines()) {
+  console.log('Line:', line);
+}
+```
+
+**Example: Handle non-zero exit codes**
+
+```typescript
+try {
+  const proc = await glide.process.spawn('false');
+  await proc.wait();
+} catch (err) {
+  if (err instanceof GlideProcessError) {
+    console.log('Exit code:', err.exit_code);
+    console.log('Process:', err.process);
+  }
+}
+
+// Or disable exit code checking
+const proc = await glide.process.spawn('false', [], {
+  check_exit_code: false
+});
+await proc.wait();
+console.log('Exit code:', proc.exit_code);
+```
+
+---
+
+### execute()
+
+Spawn a new process and wait for it to exit. This is a convenience method that combines `spawn()` and `wait()`.
+
+```typescript
+const proc = await glide.process.execute(
+  command: string,
+  args?: string[] | null | undefined,
+  opts?: glide.SpawnOptions
+): Promise<glide.CompletedProcess>
+```
+
+<ParamField path="command" type="string" required>
+  The command to execute.
+</ParamField>
+
+<ParamField path="args" type="string[]">
+  Arguments to pass to the command.
+</ParamField>
+
+<ParamField path="opts" type="glide.SpawnOptions">
+  Same options as [`spawn()`](#spawn).
+</ParamField>
+
+<ResponseField name="CompletedProcess" type="glide.CompletedProcess">
+  A process object that has already exited (guaranteed to have a non-null `exit_code`).
+</ResponseField>
+
+**Example**
+
+```typescript
+const proc = await glide.process.execute('pwd');
+console.log('Exit code:', proc.exit_code);
+const output = await proc.stdout.text();
+console.log('Current directory:', output.trim());
+```
+
+## Types
+
+### glide.Process
+
+Represents a running or completed process.
+
+```typescript
+type Process = {
+  pid: number;
+  exit_code: number | null;
+  stdout: glide.ProcessReadStream;
+  stderr: glide.ProcessReadStream | null;
+  stdin: glide.ProcessStdinPipe;
+  wait(): Promise<glide.CompletedProcess>;
+  kill(timeout?: number): Promise<glide.CompletedProcess>;
+}
+```
+
+### glide.CompletedProcess
+
+Represents a process that has exited.
+
+```typescript
+type CompletedProcess = glide.Process & { exit_code: number }
+```
+
+### glide.ProcessReadStream
+
+A ReadableStream with helper methods for processing output.
+
+```typescript
+type ProcessReadStream = ReadableStream<string> & {
+  text(): Promise<string> & { [Symbol.asyncIterator](): AsyncIterator<string> };
+  lines(): Promise<string[]> & { [Symbol.asyncIterator](): AsyncIterator<string> };
+}
+```
+
+### glide.ProcessStdinPipe
+
+Write interface for process stdin.
+
+```typescript
+type ProcessStdinPipe = {
+  write(data: string | ArrayBuffer | TypedArray): Promise<void>;
+  close(opts?: { force?: boolean }): Promise<void>;
+}
+```
+
+### GlideProcessError
+
+Thrown when a process exits with a non-zero exit code (when `check_exit_code` is `true`).
+
+```typescript
+class GlideProcessError extends Error {
+  name: 'GlideProcessError';
+  exit_code: number;
+  process: glide.Process;
+}
+```
+
+## Related APIs
+
+- [`glide.env`](/api/environment) - Manage environment variables
+- [`glide.path`](/api/path) - Path utilities
+- [`glide.fs`](/api/filesystem) - File system operations

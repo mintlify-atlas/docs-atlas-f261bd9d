@@ -1,80 +1,262 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quickstart
+description: Get productive with Glide Browser in minutes
 ---
 
-## Get started in three steps
-
-Get your documentation site running locally and make your first customization.
-
-### Step 1: Set up your local environment
-
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
-
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
-
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 3: Go live
-
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
-
-## Next steps
-
-Now that you have your docs running, explore these key features:
-
-<CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
-</CardGroup>
+This guide will get you from installation to productive browsing with Glide in just a few minutes.
 
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+If you haven't installed Glide yet, see the [Installation guide](/installation) first.
 </Note>
+
+## First Launch
+
+When you first launch Glide, you'll see a standard browser interface with the Firefox tab bar. Glide enhances this with powerful keyboard controls.
+
+## Understanding Modes
+
+Glide uses a modal editing system inspired by Vim. You're always in one of several modes:
+
+- **Normal mode** - For navigation and browser control (default)
+- **Insert mode** - For typing in text fields
+- **Hint mode** - For selecting links and buttons with the keyboard
+- **Visual mode** - For selecting text
+- **Command mode** - For running commands
+
+<Tip>
+The current mode is shown in the bottom-right corner of the window.
+</Tip>
+
+## Basic Navigation
+
+In **normal mode**, you can navigate using keyboard shortcuts:
+
+<Steps>
+  <Step title="Scroll with keyboard">
+    Use `j` to scroll down and `k` to scroll up, just like in Vim.
+    
+    ```
+    j  - Scroll down
+    k  - Scroll up
+    h  - Scroll left
+    l  - Scroll right
+    ```
+  </Step>
+
+  <Step title="Navigate pages">
+    Quick page navigation shortcuts:
+    
+    ```
+    gg      - Scroll to top of page
+    G       - Scroll to bottom
+    <C-d>   - Scroll down half a page
+    <C-u>   - Scroll up half a page
+    ```
+  </Step>
+
+  <Step title="Use hints to click">
+    Press `f` to enter hint mode. Labels will appear over clickable elements.
+    
+    Type the label characters to select an element. For example, if you see a link labeled "ab", type `ab` to click it.
+    
+    ```
+    f   - Show hints and follow in current tab
+    F   - Show hints and follow in new tab
+    ```
+  </Step>
+</Steps>
+
+## Switching Modes
+
+<CardGroup cols={2}>
+  <Card title="Enter insert mode" icon="keyboard">
+    Press `i` when focused on the page to enter insert mode, then click or focus a text field.
+    
+    Or use `gi` to automatically focus the first input field on the page.
+  </Card>
+
+  <Card title="Return to normal mode" icon="arrow-left">
+    Press `<Esc>` or `<C-[>` from any mode to return to normal mode.
+  </Card>
+</CardGroup>
+
+## Tab Management
+
+<Steps>
+  <Step title="Open the tab picker">
+    Press `<Space><Space>` to open the fuzzy tab picker. Start typing to filter tabs, then press `<Enter>` to switch to the selected tab.
+  </Step>
+
+  <Step title="Navigate tabs">
+    ```
+    <C-j>   - Next tab
+    <C-k>   - Previous tab
+    gt      - Next tab (Vim-style)
+    gT      - Previous tab (Vim-style)
+    ```
+  </Step>
+
+  <Step title="Manage tabs">
+    ```
+    <leader>d   - Close current tab (leader is <Space> by default)
+    <leader>n   - New tab
+    u           - Reopen closed tab
+    ```
+  </Step>
+</Steps>
+
+## Using the Command Line
+
+Press `:` to open the command line, similar to Vim.
+
+<CodeGroup>
+```bash Common commands
+:tab             - Open tab picker
+:tab_close       - Close current tab
+:reload          - Reload page
+:config_reload   - Reload Glide configuration
+```
+
+```bash Navigation commands
+:back            - Go back in history
+:forward         - Go forward in history
+:tab_new [url]   - Open new tab
+```
+</CodeGroup>
+
+<Tip>
+The command line has fuzzy matching and tab completion. Start typing and press `<Tab>` to complete.
+</Tip>
+
+## Essential Keybindings
+
+Here's a quick reference of the most useful keybindings:
+
+| Key | Action |
+|-----|--------|
+| `f` | Show hints to click links |
+| `F` | Show hints to open links in new tab |
+| `i` | Enter insert mode |
+| `gi` | Focus first input field |
+| `v` | Enter visual mode |
+| `yy` | Copy current URL |
+| `p` | Open URL from clipboard |
+| `<Space><Space>` | Open tab picker |
+| `:` | Open command line |
+| `<leader>r` | Reload page (`<Space>r` by default) |
+| `<leader>R` | Hard reload bypassing cache |
+| `<C-o>` | Jump back in history |
+| `<C-i>` | Jump forward in history |
+| `gg` / `G` | Scroll to top/bottom |
+| `<Esc>` | Return to normal mode |
+
+## Common Workflows
+
+<AccordionGroup>
+  <Accordion title="Open a link in a new tab">
+    1. Press `F` to enter hint mode for new tabs
+    2. Type the hint label that appears over your link
+    3. The link opens in a new tab
+  </Accordion>
+
+  <Accordion title="Search the page">
+    1. Press `:` to open the command line
+    2. Type `:findbar` or use the default keymap (usually `/`)
+    3. Type your search query
+    4. Use `n` and `N` to navigate matches
+  </Accordion>
+
+  <Accordion title="Copy a URL and open it">
+    1. Navigate to a link with `f`
+    2. Press `yf` instead to copy the link URL
+    3. Or press `yy` to copy the current page URL
+    4. Press `p` to open the copied URL
+  </Accordion>
+
+  <Accordion title="Switch between recent tabs">
+    1. Press `<Space><Space>` to open the tab picker
+    2. Start typing part of the tab title or URL
+    3. Press `<Enter>` to switch to the selected tab
+  </Accordion>
+</AccordionGroup>
+
+## Configuration
+
+Glide is highly customizable through a TypeScript configuration file.
+
+<Steps>
+  <Step title="Create your config">
+    Run the `:config_init` command to create a default configuration file at `~/.config/glide/glide.ts` (or your platform's equivalent).
+  </Step>
+
+  <Step title="Edit your config">
+    Run `:config_edit` to open your config file in your default editor, or manually edit `~/.config/glide/glide.ts`.
+  </Step>
+
+  <Step title="Reload your config">
+    After making changes, run `:config_reload` to apply them without restarting the browser.
+  </Step>
+</Steps>
+
+Example configuration:
+
+```typescript
+// Change the leader key from Space to comma
+glide.g.mapleader = ",";
+
+// Add a custom keybinding
+glide.keymaps.set("normal", "<leader>g", async () => {
+  await browser.tabs.create({ url: "https://github.com" });
+}, { description: "Open GitHub" });
+
+// Set global options
+glide.o.hint_size = "14px";
+glide.o.native_tabs = "hide";
+
+// Add an autocmd to run code when visiting specific sites
+glide.autocmds.create("UrlEnter", /github\.com/, () => {
+  console.log("Welcome to GitHub!");
+});
+```
+
+<Info>
+Your config file has full TypeScript type checking and autocomplete support. See the [Configuration guide](/concepts/configuration) for more details.
+</Info>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Core concepts" icon="book" href="/concepts/modes">
+    Learn about modes, keymaps, hints, and configuration in depth
+  </Card>
+
+  <Card title="Customization guide" icon="wrench" href="/guides/customization">
+    Customize Glide's appearance, behavior, and keybindings
+  </Card>
+
+  <Card title="API reference" icon="code" href="/api/overview">
+    Explore the complete API for advanced configuration
+  </Card>
+
+  <Card title="Community" icon="users" href="https://glide.zulipchat.com">
+    Join the Zulip chat to ask questions and share tips
+  </Card>
+</CardGroup>
+
+## Tips for New Users
+
+<Tip>
+**Start simple**: You don't need to learn everything at once. Master basic navigation (`hjkl`, `f` for hints, `<Space><Space>` for tabs) first, then gradually add more shortcuts to your workflow.
+</Tip>
+
+<Tip>
+**Use the which-key feature**: When you press a partial key sequence (like `<Space>`), Glide will show you available completions after a short delay.
+</Tip>
+
+<Tip>
+**Check the hints**: If you're not sure how to interact with something, press `f` to see what's clickable.
+</Tip>
+
+<Warning>
+Some websites may not work well with keyboard navigation initially. You can press `<C-,>` to move focus out of custom elements, or temporarily switch to ignore mode if needed.
+</Warning>

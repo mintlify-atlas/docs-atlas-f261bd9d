@@ -1,0 +1,382 @@
+---
+title: 'glide.unstable'
+description: 'Experimental and unstable APIs subject to change'
+icon: 'flask'
+---
+
+<Warning>
+  **These APIs are experimental and may change or be removed in future versions.**
+  
+  Use with caution in production configurations. Breaking changes will not be considered major version bumps.
+</Warning>
+
+The `glide.unstable` namespace contains experimental features that are still being refined. These APIs provide access to cutting-edge browser functionality but may have bugs or incomplete implementations.
+
+## glide.unstable.split_views
+
+Manage tab split views for displaying multiple tabs side-by-side.
+
+<Warning>
+  **Split views are experimental in Firefox itself.** There will be bugs and limitations.
+</Warning>
+
+### split_views.create()
+
+Start a split view with the given tabs displayed side-by-side.
+
+```typescript
+glide.unstable.split_views.create(
+  tabs: Array<TabID | Browser.Tabs.Tab>,
+  opts?: glide.SplitViewCreateOpts
+): glide.SplitView
+```
+
+#### Parameters
+
+<ParamField path="tabs" type="Array<number | Tab>" required>
+  Array of at least 2 tabs to display in split view. Can be tab IDs or tab objects.
+  
+  **Requirements:**
+  - Must provide at least 2 tabs
+  - Tabs must not be pinned
+  - Tab IDs must be valid
+</ParamField>
+
+<ParamField path="opts" type="object">
+  Optional configuration
+  
+  <Expandable title="properties">
+    <ParamField path="id" type="number">
+      Custom ID for the split view. If not provided, one is auto-generated.
+      
+      **Note:** Will throw an error if the ID is already in use.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+#### Returns
+
+<ResponseField name="id" type="number">
+  Unique identifier for this split view
+</ResponseField>
+
+<ResponseField name="tabs" type="Browser.Tabs.Tab[]">
+  Array of tab objects currently in the split view
+</ResponseField>
+
+#### Example
+
+```typescript
+// Create split view with tab objects
+const tabs = await glide.tabs.query({});
+const splitView = glide.unstable.split_views.create([tabs[0], tabs[1]]);
+
+console.log("Split view ID:", splitView.id);
+console.log("Tabs in split:", splitView.tabs);
+
+// Create split view with tab IDs
+const tab1 = await glide.tabs.active();
+const tab2 = await browser.tabs.create({ url: "https://example.com" });
+glide.unstable.split_views.create([tab1.id, tab2.id!]);
+
+// Create with custom ID
+glide.unstable.split_views.create([tab1, tab2], { id: 1234 });
+```
+
+### split_views.get()
+
+Retrieve a split view by ID, tab ID, or tab object.
+
+```typescript
+glide.unstable.split_views.get(
+  tab: SplitViewID | TabID | Browser.Tabs.Tab
+): glide.SplitView | null
+```
+
+#### Parameters
+
+<ParamField path="tab" type="number | Tab" required>
+  Can be:
+  - Split view ID
+  - Tab ID (returns the split view containing that tab)
+  - Tab object (returns the split view containing that tab)
+</ParamField>
+
+#### Returns
+
+Returns the `SplitView` object if found, or `null` if the identifier doesn't correspond to any split view.
+
+#### Example
+
+```typescript
+const tabs = await glide.tabs.query({});
+const splitView = glide.unstable.split_views.create([tabs[0], tabs[1]]);
+
+// Get by split view ID
+const view1 = glide.unstable.split_views.get(splitView.id);
+
+// Get by tab ID
+const view2 = glide.unstable.split_views.get(tabs[0].id!);
+
+// Get by tab object
+const view3 = glide.unstable.split_views.get(tabs[0]);
+
+// All three return the same split view
+console.log(view1?.id === view2?.id); // true
+console.log(view2?.id === view3?.id); // true
+```
+
+### split_views.separate()
+
+Revert a tab in a split view back to a normal tab, destroying the split view.
+
+```typescript
+glide.unstable.split_views.separate(
+  tab: SplitViewID | TabID | Browser.Tabs.Tab
+): void
+```
+
+#### Parameters
+
+<ParamField path="tab" type="number | Tab" required>
+  Can be:
+  - Split view ID (separates all tabs)
+  - Tab ID (separates that specific tab)
+  - Tab object (separates that specific tab)
+</ParamField>
+
+#### Behavior
+
+- Separating any tab in a split view destroys the entire split view
+- All tabs in the split view become normal standalone tabs
+- Throws an error if the tab is not in a split view
+
+#### Example
+
+```typescript
+const tabs = await glide.tabs.query({});
+const splitView = glide.unstable.split_views.create([tabs[0], tabs[1]]);
+
+console.log(glide.unstable.split_views.has_split_view(tabs[0])); // true
+console.log(glide.unstable.split_views.has_split_view(tabs[1])); // true
+
+// Separate one tab - destroys the entire split view
+glide.unstable.split_views.separate(tabs[0]);
+
+console.log(glide.unstable.split_views.has_split_view(tabs[0])); // false
+console.log(glide.unstable.split_views.has_split_view(tabs[1])); // false
+
+// Can also separate by split view ID
+const newSplit = glide.unstable.split_views.create([tabs[2], tabs[3]]);
+glide.unstable.split_views.separate(newSplit.id);
+```
+
+### split_views.has_split_view()
+
+Check whether a tab is currently in a split view.
+
+```typescript
+glide.unstable.split_views.has_split_view(
+  tab: TabID | Browser.Tabs.Tab
+): boolean
+```
+
+#### Parameters
+
+<ParamField path="tab" type="number | Tab" required>
+  Tab ID or tab object to check
+</ParamField>
+
+#### Returns
+
+Returns `true` if the tab is in a split view, `false` otherwise.
+
+#### Example
+
+```typescript
+const tabs = await glide.tabs.query({});
+
+console.log(glide.unstable.split_views.has_split_view(tabs[0])); // false
+
+const splitView = glide.unstable.split_views.create([tabs[0], tabs[1]]);
+
+console.log(glide.unstable.split_views.has_split_view(tabs[0])); // true
+console.log(glide.unstable.split_views.has_split_view(tabs[1])); // true
+console.log(glide.unstable.split_views.has_split_view(tabs[2])); // false
+```
+
+## Split View Examples
+
+### Basic Split View Setup
+
+```typescript
+glide.keymaps.set("normal", "<leader>vs", async () => {
+  const tabs = await glide.tabs.query({ currentWindow: true });
+  
+  if (tabs.length < 2) {
+    console.log("Need at least 2 tabs to create split view");
+    return;
+  }
+  
+  // Split the first two tabs
+  const splitView = glide.unstable.split_views.create([tabs[0], tabs[1]]);
+  console.log(`Created split view ${splitView.id}`);
+});
+```
+
+### Split Current Tab with New Tab
+
+```typescript
+glide.keymaps.set("normal", "<leader>vn", async ({ tab_id }) => {
+  // Create a new tab
+  const newTab = await browser.tabs.create({
+    url: "https://example.com"
+  });
+  
+  // Wait for tab to be created
+  await new Promise(resolve => setTimeout(resolve, 100));
+  
+  // Create split view with current and new tab
+  glide.unstable.split_views.create([tab_id, newTab.id!]);
+});
+```
+
+### Toggle Split View
+
+```typescript
+glide.keymaps.set("normal", "<leader>vt", async ({ tab_id }) => {
+  if (glide.unstable.split_views.has_split_view(tab_id)) {
+    // Already in split view - separate it
+    glide.unstable.split_views.separate(tab_id);
+    console.log("Separated split view");
+  } else {
+    // Not in split view - create one with next tab
+    const tabs = await glide.tabs.query({ currentWindow: true });
+    const currentIndex = tabs.findIndex(t => t.id === tab_id);
+    const nextTab = tabs[currentIndex + 1];
+    
+    if (nextTab) {
+      glide.unstable.split_views.create([tab_id, nextTab.id!]);
+      console.log("Created split view");
+    }
+  }
+});
+```
+
+### Open Link in Split View
+
+```typescript
+glide.excmds.create(
+  { 
+    name: "split_open",
+    description: "Open URL in split view with current tab"
+  },
+  async ({ tab_id, args_arr }) => {
+    if (args_arr.length === 0) {
+      console.error("Usage: split_open <url>");
+      return;
+    }
+    
+    const url = args_arr[0];
+    const newTab = await browser.tabs.create({ url, active: false });
+    
+    // Wait for tab to be ready
+    await new Promise(resolve => setTimeout(resolve, 200));
+    
+    try {
+      glide.unstable.split_views.create([tab_id, newTab.id!]);
+    } catch (error) {
+      console.error("Failed to create split view:", error);
+    }
+  }
+);
+
+declare global {
+  interface ExcmdRegistry {
+    split_open: {};
+  }
+}
+
+// Usage: :split_open https://glide-browser.app
+```
+
+### Inspect Split View Info
+
+```typescript
+glide.keymaps.set("normal", "<leader>vi", async ({ tab_id }) => {
+  const splitView = glide.unstable.split_views.get(tab_id);
+  
+  if (splitView) {
+    console.log(`Split View #${splitView.id}`);
+    console.log(`Tabs: ${splitView.tabs.length}`);
+    splitView.tabs.forEach((tab, i) => {
+      console.log(`  [${i}] ${tab.title} - ${tab.url}`);
+    });
+  } else {
+    console.log("Current tab is not in a split view");
+  }
+});
+```
+
+## Known Limitations
+
+### Split Views
+
+1. **Cannot split pinned tabs** - Will throw an error if you try to create a split view with a pinned tab
+2. **Firefox bugs** - Split views are experimental in Firefox itself and may have rendering or stability issues
+3. **Custom ID collisions** - Using `{ id: N }` with an existing ID throws an error
+4. **Separating destroys all** - Separating one tab closes the entire split view, not just that tab
+5. **Two tabs minimum** - Must provide at least 2 tabs to create a split view
+
+## Error Handling
+
+```typescript
+try {
+  const tabs = await glide.tabs.query({});
+  
+  // This will throw if a tab is pinned
+  glide.unstable.split_views.create([tabs[0], tabs[1]]);
+} catch (error) {
+  console.error("Split view error:", error);
+  // Error: Could not create a splitview; Is one of the tabs pinned?
+}
+
+try {
+  // This will throw if ID is already in use
+  glide.unstable.split_views.create([tabs[2], tabs[3]], { id: 1234 });
+  glide.unstable.split_views.create([tabs[4], tabs[5]], { id: 1234 });
+} catch (error) {
+  console.error("Split view error:", error);
+  // Error: Could not create a splitview; The 1234 ID is already in use
+}
+```
+
+## Migration Notes
+
+### glide.unstable.include() (Deprecated)
+
+<Warning>
+  **Deprecated:** Use `glide.include()` instead.
+</Warning>
+
+```typescript
+// ❌ Old (deprecated)
+await glide.unstable.include("shared.glide.ts");
+
+// ✓ New
+await glide.include("shared.glide.ts");
+```
+
+## Future Unstable APIs
+
+The `glide.unstable` namespace will continue to host experimental features as they're developed. Check the [Changelog](/changelog) for updates on:
+
+- New experimental APIs
+- Unstable APIs graduating to stable
+- Breaking changes to unstable APIs
+
+## See Also
+
+- [glide.tabs](/api/tabs) - Stable tab management API
+- [glide.prefs](/api/prefs) - Browser preferences (including split view prefs)
+- [Changelog](/changelog) - Track API stability changes

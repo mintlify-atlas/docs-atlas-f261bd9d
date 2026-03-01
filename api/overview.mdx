@@ -1,0 +1,212 @@
+---
+title: "API Overview"
+description: "Complete guide to the Glide Browser API structure and namespaces"
+---
+
+## API Structure
+
+The Glide Browser API is exposed through the global `glide` object, which provides programmatic access to browser functionality through TypeScript. The API is organized into logical namespaces for different browser features.
+
+## Core Namespaces
+
+<CardGroup cols={2}>
+  <Card title="glide.keymaps" icon="keyboard" href="/api/keymaps">
+    Define and manage keyboard mappings across different modes
+  </Card>
+  
+  <Card title="glide.excmds" icon="terminal" href="/api/excmds">
+    Execute and create custom ex-commands
+  </Card>
+  
+  <Card title="glide.autocmds" icon="bolt" href="/api/autocmds">
+    Create event-driven automation with autocmds
+  </Card>
+  
+  <Card title="glide.tabs" icon="browser" href="/api/tabs">
+    Query and manage browser tabs
+  </Card>
+  
+  <Card title="glide.hints" icon="hand-pointer" href="/api/hints">
+    Show and customize hint-based navigation
+  </Card>
+  
+  <Card title="glide.commandline" icon="command" href="/api/commandline">
+    Control the command-line interface
+  </Card>
+  
+  <Card title="glide.findbar" icon="search" href="/api/findbar">
+    Interact with the native find-in-page UI
+  </Card>
+  
+  <Card title="glide.styles" icon="paintbrush" href="/api/styles">
+    Add and manage custom CSS for the browser UI
+  </Card>
+</CardGroup>
+
+## System Integration
+
+<CardGroup cols={2}>
+  <Card title="glide.process" icon="terminal" href="/api/process">
+    Spawn and manage system processes
+  </Card>
+  
+  <Card title="glide.fs" icon="folder" href="/api/fs">
+    Read and write files to the filesystem
+  </Card>
+  
+  <Card title="glide.path" icon="route" href="/api/path">
+    Work with file system paths
+  </Card>
+  
+  <Card title="glide.env" icon="gear" href="/api/env">
+    Get and set environment variables
+  </Card>
+  
+  <Card title="glide.prefs" icon="sliders" href="/api/prefs">
+    Manage Firefox preferences
+  </Card>
+</CardGroup>
+
+## Content & Communication
+
+<CardGroup cols={2}>
+  <Card title="glide.content" icon="file-code" href="/api/content">
+    Execute code in the content process
+  </Card>
+  
+  <Card title="glide.messengers" icon="message" href="/api/messengers">
+    Create type-safe IPC messengers
+  </Card>
+  
+  <Card title="glide.keys" icon="keyboard" href="/api/keys">
+    Send and capture keyboard events
+  </Card>
+</CardGroup>
+
+## Extensions & Customization
+
+<CardGroup cols={2}>
+  <Card title="glide.addons" icon="puzzle-piece" href="/api/addons">
+    Install and manage browser extensions
+  </Card>
+  
+  <Card title="glide.search_engines" icon="magnifying-glass" href="/api/search-engines">
+    Add and configure search engines
+  </Card>
+  
+  <Card title="glide.modes" icon="layer-group" href="/api/modes">
+    Register custom modes
+  </Card>
+</CardGroup>
+
+## Configuration
+
+### Options (glide.o)
+
+The `glide.o` object contains browser-wide configuration options:
+
+```typescript
+glide.o.mapping_timeout = 200;
+glide.o.hint_size = "12px";
+glide.o.native_tabs = "autohide";
+glide.o.newtab_url = "about:blank";
+```
+
+### Buffer Options (glide.bo)
+
+Buffer-specific options that reset when navigating to a new page:
+
+```typescript
+glide.bo.hint_size = "14px"; // Only for current buffer
+```
+
+### Globals (glide.g)
+
+Store arbitrary data and configure global settings:
+
+```typescript
+glide.g.mapleader = "<Space>";
+
+// Store custom data
+declare global {
+  interface GlideGlobals {
+    my_custom_data?: boolean;
+  }
+}
+glide.g.my_custom_data = true;
+```
+
+### Context (glide.ctx)
+
+Access runtime information about the current state:
+
+```typescript
+const mode = glide.ctx.mode;              // "normal" | "insert" | "visual" | ...
+const url = glide.ctx.url;                // Current tab URL
+const os = glide.ctx.os;                  // "linux" | "win" | "macosx" | ...
+const version = glide.ctx.version;        // Glide version
+const isEditing = await glide.ctx.is_editing(); // Is cursor in editable field?
+```
+
+## Buffer-Scoped APIs
+
+The `glide.buf` namespace provides buffer-scoped versions of certain APIs:
+
+- **glide.buf.keymaps** - Set keymaps that only apply to the current buffer
+- **glide.buf.prefs** - Set preferences that reset when leaving the buffer
+
+```typescript
+// These settings only apply to the current page
+glide.buf.keymaps.set("normal", "j", "scroll_down");
+glide.buf.prefs.set("layout.css.devPixelsPerPx", "1.5");
+```
+
+## Utility Functions
+
+### glide.include()
+
+Include another TypeScript config file:
+
+```typescript
+await glide.include("shared-config.ts");
+```
+
+### glide.options.get()
+
+Get an option value, checking buffer-specific options first:
+
+```typescript
+const hintSize = glide.options.get("hint_size");
+```
+
+## Type Safety
+
+The Glide API is fully typed with TypeScript. You can extend types using declaration merging:
+
+```typescript
+declare global {
+  interface GlideOptions {
+    my_custom_option?: string;
+  }
+  
+  interface GlideGlobals {
+    my_data?: number[];
+  }
+  
+  interface ExcmdRegistry {
+    my_command: { name: "my_command" };
+  }
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Getting Started" icon="play" href="/api/getting-started">
+    Write your first Glide configuration
+  </Card>
+  
+  <Card title="Examples" icon="code" href="/examples">
+    Browse example configurations and patterns
+  </Card>
+</CardGroup>

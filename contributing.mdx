@@ -1,0 +1,375 @@
+---
+title: Contributing Guide
+description: Learn how to build and contribute to Glide Browser
+---
+
+Glide Browser is an open-source project and welcomes contributions. This guide will help you get started with building and developing Glide.
+
+## Prerequisites
+
+To build Glide you must have:
+- [Node.js](https://nodejs.org/en/blog/release/v24.0.0) v24
+- [pnpm](https://pnpm.io/installation)
+
+You must also verify that your system has the dependencies that Firefox requires:
+- [macOS](https://firefox-source-docs.mozilla.org/setup/macos_build.html)
+- [Linux](https://firefox-source-docs.mozilla.org/setup/linux_build.html)
+- Windows is not officially supported, but [WSL](https://firefox-source-docs.mozilla.org/setup/windows_wsl_build.html) may work
+
+## Getting Started
+
+<Steps>
+  <Step title="Clone the repository">
+    ```bash
+    git clone https://github.com/glide-browser/glide
+    ```
+  </Step>
+
+  <Step title="Install dependencies and bootstrap">
+    ```bash
+    pnpm install
+    pnpm bootstrap
+    pnpm bootstrap:mach
+    ```
+
+    `pnpm bootstrap` will:
+    - Download Firefox source code to the `engine/` directory
+    - Bundle Glide's dependencies
+    - Build the docs
+    - Apply all patches to the Firefox source code
+
+    `pnpm bootstrap:mach` will:
+    - Download missing system dependencies
+    - Configure Firefox's internal `mach` tool
+  </Step>
+
+  <Step title="Build Glide">
+    ```bash
+    pnpm build
+    ```
+
+    <Warning>
+      This can take quite a long time - a fresh build takes ~30 mins on an M4 Max.
+    </Warning>
+
+    <Note>
+      `pnpm bootstrap:mach` configures git to use `watchman` for tracking file access.
+      On many systems, running git commands in the `engine` directory may hit the watch limit.
+      See [the watchman docs](https://facebook.github.io/watchman/docs/install#system-specific-preparation) for details.
+
+      - **Linux**: Add `fs.inotify.max_user_watches=524288` to `/etc/sysctl.conf` and run `sudo sysctl -p`
+      - **macOS**: Add `kern.maxfiles` and `kern.maxfilesperproc` parameters
+    </Note>
+  </Step>
+
+  <Step title="Launch Glide">
+    ```bash
+    pnpm launch
+    ```
+
+    <Tip>
+      Run `pnpm launch --help` to see all available command-line arguments.
+    </Tip>
+  </Step>
+</Steps>
+
+## Development Workflow
+
+### File Watcher
+
+You should always have a terminal open running the file watcher:
+
+```bash
+pnpm dev
+```
+
+This handles:
+- Compiling TypeScript files to JavaScript
+- Rebuilding docs
+- Copying source files to the Firefox `engine/` directory
+
+With the watcher running, you should rarely need to explicitly rebuild.
+
+### Reloading Changes
+
+Most of Glide is implemented in bundled TypeScript files (`.mts`). These files are loaded on browser start, but not on new tabs or windows. To reload changes:
+
+1. Close the browser
+2. Run `pnpm launch` again
+
+### Logging
+
+Generally, use `GlideBrowser._log`. Some parts of the code use a more specific logger (search for `console.createInstance()`).
+
+By default, only `error` level logging is shown. Enable more verbose logging:
+
+```bash
+pnpm launch --setpref="glide.logging.loglevel=Debug"
+```
+
+See `ConsoleLogLevel` for available log levels. For more information, see [Firefox's logging docs](https://firefox-source-docs.mozilla.org/xpcom/logging.html).
+
+### User Config
+
+The config file in `src/glide.ts` takes precedence over the user-wide config. `pnpm bootstrap` creates an empty config automatically, but you can edit it manually for testing.
+
+## Editor Setup
+
+### Pre-push Hook
+
+Glide has a pre-push hook that runs lints automatically before each `git push`:
+
+```bash
+ln -s ../../scripts/pre-push.sh .git/hooks/pre-push
+```
+
+### Linting
+
+Glide uses [oxlint](https://oxc.rs/docs/guide/usage/linter.html) for linting. Available extensions:
+- [VSCode extension](https://oxc.rs/docs/guide/usage/linter.html#vscode-extension)
+- [Zed extension](https://oxc.rs/docs/guide/usage/linter.html#zed-extension)
+- `oxc_language_server` LSP
+
+Run lint checks manually:
+
+```bash
+pnpm lint
+```
+
+<Accordion title="Neovim Configuration">
+  For Neovim 11, use this config:
+
+  ```lua
+  vim.lsp.config('oxc', {
+    cmd = {"npx", "oxc_language_server"},
+    root_dir = function(buf, on_dir)
+      local dir = vim.fs.root(0, { 'package.json', 'tsconfig.json' })
+      if dir then on_dir(dir) end
+    end,
+  })
+  ```
+</Accordion>
+
+### Formatting
+
+Glide uses [dprint](https://dprint.dev/) for formatting. Install and [configure](https://dprint.dev/install/#editor-extensions) it for your editor.
+
+Run auto-formatting manually:
+
+```bash
+pnpm fmt
+```
+
+## Testing
+
+### Running Tests
+
+Tests are written using [mochitest](https://firefox-source-docs.mozilla.org/testing/browser-chrome/index.html) and located in `src/glide/browser/base/content/test/`.
+
+Run all tests:
+
+```bash
+pnpm test
+# or
+pnpm mach test glide
+```
+
+Run tests in headless mode (so you can use your computer while tests run):
+
+```bash
+pnpm test --headless
+```
+
+Filter tests by directory:
+
+```bash
+pnpm mach test glide/browser/base/content/test/config/
+```
+
+Run a specific test file:
+
+```bash
+pnpm mach test glide/browser/base/content/test/config/dist/browser_include.js
+```
+
+<Note>
+  The file must be the `dist/$file.js` version - you cannot pass TypeScript files directly.
+</Note>
+
+### Writing Tests
+
+Test files must follow the naming convention `browser_$name.ts`.
+
+A typical test file:
+
+```typescript
+"use strict";
+
+add_task(async function test_my_test_name() {
+  // test code here
+});
+```
+
+### Assertion Functions
+
+Mochitest provides these assertion functions:
+
+```typescript
+function is(a: unknown, b: unknown, name?: string): void;
+function isnot(a: unknown, b: unknown, name?: string): void;
+function todo_is(a: unknown, b: unknown, name?: string): void;
+function isjson(a: unknown, b: unknown, name?: string): void;
+function ok(a: unknown, name?: string): asserts a;
+function notok(a: unknown, name?: string): void;
+```
+
+### Adding New Tests
+
+When adding a new test file, include it in the `browser.toml` file for that test directory:
+
+```toml
+[DEFAULT]
+support-files = []
+
+["dist/browser_my_test.js"]
+```
+
+You can filter test functions in a single file with `.only()` or `.skip()`:
+
+```typescript
+add_task(...).skip();
+add_task(...).only();
+```
+
+<Warning>
+  Tests sometimes fail with this message:
+  
+  ```
+  FAIL uncaught exception - NotFoundError: Node.insertBefore:
+  Child to insert before is not a child of this node
+  at apply_mutations/<@chrome://glide/content/document-mirror.mjs:170:23
+  ```
+  
+  This is a known flakiness and does not indicate an issue with your local environment.
+</Warning>
+
+## Key Concepts
+
+### Firefox Integration
+
+Glide inherits many concepts from Firefox:
+
+1. **mach CLI**: The main way to interact with the Firefox build system. Access it through `pnpm mach`. See [Firefox docs](https://firefox-source-docs.mozilla.org/mach/usage.html).
+
+2. **Mochitest**: Test framework for browser chrome tests. See [testing docs](https://firefox-source-docs.mozilla.org/testing/browser-chrome/index.html).
+
+3. **JAR Manifests**: Files are included in the Firefox build through [JAR Manifests](https://firefox-source-docs.mozilla.org/build/buildsystem/jar-manifests.html).
+
+4. **JS Actors**: All interaction with web content is centralized to `GlideHandlerChild` actor. See [JS Actors docs](https://firefox-source-docs.mozilla.org/dom/ipc/jsactors.html).
+
+5. **Module imports**: JS imports must use Firefox's `ChromeUtils.importESModule()`. Types can be imported with `import type { .. } from '...'`. See [system modules docs](https://firefox-source-docs.mozilla.org/jsloader/system-modules.html).
+
+### TypeScript Build System
+
+Glide takes a non-standard approach to TypeScript:
+
+- TypeScript files are converted to JS by stripping all TS syntax with [ts-blank-space](https://github.com/bloomberg/ts-blank-space)
+- Output is stored in a relative `./dist/` directory
+- Type syntax is replaced with spaces, so no sourcemaps are needed
+- **Important**: You cannot use any TS syntax that has a runtime effect (e.g., `enum`)
+
+**Why this approach?**
+- Integrating TS directly into the Firefox build system is hard
+- Aligns with the philosophy that TS should just be JS + types
+- Simplifies debugging by preserving line numbers
+
+### JS Actors
+
+To interact with web content, Glide uses a single [JSWindowActor](https://firefox-source-docs.mozilla.org/dom/ipc/jsactors.html): `GlideHandlerChild.sys.mts`.
+
+- Code in `GlideHandlerChild.sys.mts` runs outside the main process
+- Communicates with the main process by sending messages
+- Messages are typed and sent through `.send_async_message(name, args?)`
+
+**Message definitions**:
+- Parent → Child messages: `GlideHandlerParent.sys.mts::ParentMessages`
+- Child → Parent messages: `GlideHandlerChild.sys.mts::ChildMessages`
+
+Example usage from the main process:
+
+```typescript
+GlideBrowser.get_focused_actor().send_async_message(
+  "Glide::ReplaceChar",
+  { character: "a" }
+);
+```
+
+### Firefox Patches
+
+Use the internal script to patch Firefox source code:
+
+```bash
+pnpm firefox:patch
+```
+
+See the [patch script](https://github.com/glide-browser/glide/blob/main/scripts/firefox/patch.mts) for details.
+
+## Documentation Development
+
+The docs pages are written in Markdown and located in `src/glide/docs/`. The markdown is converted to HTML using a custom [Markdoc](https://markdoc.dev/) integration.
+
+### Syntax Highlighting
+
+Performed by [Shiki](https://shiki.style/) with a custom Tokyo Night theme.
+
+### Live Reload
+
+Glide ships with a built-in file watcher for docs. Enable it:
+
+```typescript
+glide.prefs.set("glide.dev.reload_files", true);
+
+// Required for search index to work
+glide.prefs.set(
+  "security.fileuri.strict_origin_policy",
+  false
+);
+```
+
+Then open a `file://` URI:
+
+```
+file:///path-to-glide-directory/src/glide/docs/dist/contributing.html
+```
+
+<Tip>
+  You don't need to build Glide from scratch to update docs!
+  
+  Run just the docs build in watch mode:
+  
+  ```bash
+  pnpm dev:docs
+  ```
+</Tip>
+
+## Debugging
+
+### Debugging Hints
+
+Hint popups disappear when you try to inspect them with the [Browser Toolbox](https://firefox-source-docs.mozilla.org/devtools-user/browser_toolbox/index.html).
+
+To prevent this:
+1. Disable popup auto-hide in the Browser Toolbox
+2. See [Firefox docs](https://firefox-source-docs.mozilla.org/devtools-user/browser_toolbox/index.html#debugging-popups) for instructions
+
+Hints will only be cleared when activated or when `<Esc>` is pressed.
+
+## Community
+
+- **Chat**: Join the [Zulip chat](https://glide.zulipchat.com) for realtime discussion
+- **Issues**: Report bugs and issues on [GitHub](https://github.com/glide-browser/glide/issues)
+- **Discussions**: Ask questions on [GitHub Discussions](https://github.com/glide-browser/glide/discussions)
+
+## License
+
+This project is licensed under the Mozilla Public License Version 2.0.

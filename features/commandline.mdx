@@ -1,0 +1,350 @@
+---
+title: Command Line Interface
+description: Execute commands and navigate Glide using the command line
+---
+
+Glide Browser includes a powerful command line interface for executing commands, similar to Vim's ex command mode. Access it by pressing `:` in normal mode.
+
+## Opening the Command Line
+
+```typescript
+// Show command line
+glide.keymaps.set("normal", ":", "commandline_show");
+
+// Show with prefilled text
+glide.keymaps.set("normal", "<leader><leader>", "commandline_show tab ");
+
+// Toggle command line
+glide.excmds.execute("commandline_toggle");
+```
+
+Programmatically:
+
+```typescript
+// Show empty command line
+await glide.commandline.show();
+
+// Show with prefilled input
+await glide.commandline.show({ prefill: "tab_new " });
+
+// Show with custom options
+await glide.commandline.show({
+  title: "Select an option",
+  options: [
+    { label: "Option 1", execute: () => console.log("1") },
+    { label: "Option 2", execute: () => console.log("2") },
+  ],
+});
+```
+
+## Command Line Navigation
+
+Navigate completions in command mode:
+
+```typescript
+glide.keymaps.set("command", "<Tab>", "commandline_focus_next");
+glide.keymaps.set("command", "<S-Tab>", "commandline_focus_back");
+glide.keymaps.set("command", "<Down>", "commandline_focus_next");
+glide.keymaps.set("command", "<Up>", "commandline_focus_back");
+glide.keymaps.set("command", "<Enter>", "commandline_accept");
+glide.keymaps.set("command", "<C-d>", "commandline_delete");
+glide.keymaps.set("command", "<Esc>", "commandline_toggle");
+```
+
+**Available commands**:
+- `commandline_show` - Show the command line UI
+- `commandline_toggle` - Toggle command line visibility
+- `commandline_focus_next` - Focus next completion
+- `commandline_focus_back` - Focus previous completion
+- `commandline_accept` - Execute focused completion
+- `commandline_delete` - Delete focused completion
+
+## Ex Commands Reference
+
+Glide provides a comprehensive set of ex commands defined in `browser-excmds-registry.mts:66-467`.
+
+### Navigation Commands
+
+<AccordionGroup>
+  <Accordion title="History">
+    - `:back` - Go back one page in history
+    - `:forward` - Go forward one page in history
+  </Accordion>
+
+  <Accordion title="Page Navigation">
+    - `:reload` - Reload the current page
+    - `:reload_hard` - Reload bypassing cache
+    - `:go_up` - Go up the URL hierarchy
+    - `:go_to_root` - Go to the root of the current URL
+    - `:go_next` - Follow the link labeled next or &gt;
+    - `:go_previous` - Follow the link labeled previous or &lt;
+  </Accordion>
+
+  <Accordion title="Scrolling">
+    - `:scroll_top` - Scroll to the top of the window
+    - `:scroll_bottom` - Scroll to the bottom of the window
+    - `:scroll_page_down` - Scroll down by 1 page
+    - `:scroll_page_up` - Scroll up by 1 page
+    - `:scroll_half_page_down` - Scroll down by half a page
+    - `:scroll_half_page_up` - Scroll up by half a page
+  </Accordion>
+</AccordionGroup>
+
+### Tab Management
+
+<CodeGroup>
+```bash Basic Tab Commands
+:tab <index>          # Switch to tab at index
+:tab_new [url]        # Create new tab with optional URL
+:tab_close            # Close the current tab
+:tab_next             # Switch to next tab
+:tab_prev             # Switch to previous tab
+```
+
+```bash Tab State
+:tab_pin [tab_id]     # Pin tab (current or by ID)
+:tab_unpin [tab_id]   # Unpin tab (current or by ID)
+:tab_pin_toggle       # Toggle pin state of current tab
+```
+
+```bash Tab Actions
+:tab_reopen           # Reopen last closed tab
+:tab_duplicate        # Duplicate current tab
+```
+</CodeGroup>
+
+### Mode Commands
+
+```bash
+:mode_change <mode> [options]  # Change to specified mode
+```
+
+**Available modes**: `normal`, `insert`, `visual`, `op-pending`, `ignore`, `command`, `hint`
+
+**Options**:
+- `--automove=<left|endline>` - Move cursor when entering insert mode
+- `--operator=<d|c|r>` - Set operator for op-pending mode
+
+Examples:
+```bash
+:mode_change insert --automove=left
+:mode_change op-pending --operator=d
+:mode_change normal
+```
+
+### Focus and Input
+
+```bash
+:blur                 # Blur the active element
+:focusinput last      # Focus the last input element on page
+```
+
+### Hint Mode
+
+```bash
+:hint                         # Show hints for clickable elements
+:hint --action=newtab-click   # Open hinted link in new tab
+:hint --location=browser-ui   # Show hints for browser UI elements
+:hint -e                      # Show hints for editable elements only
+:hint -s "selector"           # Show hints for CSS selector
+:hint --include "selector"    # Also include elements matching selector
+:hint --auto                  # Auto-activate if only one hint
+:hints_remove                 # Remove all hints and exit hint mode
+```
+
+### Clipboard Operations
+
+```bash
+:url_yank             # Yank current URL to clipboard
+:copy                 # Copy from active notification to clipboard
+:visual_selection_copy # Copy selected text and return to normal mode
+```
+
+### Editing Commands
+
+```bash
+:caret_move <direction>  # Move text caret
+:undo                    # Undo the most recent edit
+:redo                    # Redo the most recent undo
+:r [character]           # Replace current character
+```
+
+**Caret directions**: `left`, `right`, `up`, `down`, `endline`
+
+### Configuration Commands
+
+<Tabs>
+  <Tab title="Config Files">
+    ```bash
+    :config_edit      # Open config file in default editor
+    :config_path      # Show the config file path
+    :config_reload    # Reload the config file
+    :config_init [location]  # Initialize new config
+    ```
+    
+    **Init locations**: `home`, `profile`, `cwd`
+  </Tab>
+
+  <Tab title="Settings">
+    ```bash
+    :set <name> <value>   # Set an option
+    :profile_dir          # Show current profile directory
+    ```
+    
+    Example:
+    ```bash
+    :set mapping_timeout 500
+    ```
+  </Tab>
+
+  <Tab title="Styling">
+    ```bash
+    :css_edit         # Open userChrome.css in editor
+    ```
+  </Tab>
+</Tabs>
+
+### Keymap Commands
+
+```bash
+:map                  # Show all mappings
+:unmap <lhs>          # Remove mapping from normal mode
+:nunmap <lhs>         # Remove mapping from normal mode
+:iunmap <lhs>         # Remove mapping from insert mode
+```
+
+### System Commands
+
+```bash
+:quit                 # Close all windows
+:clear                # Clear all notifications
+:echo <args>          # Log arguments to console
+:keys <keyseq>        # Synthesize key sequence
+:repeat               # Repeat last invoked command
+```
+
+### Help and Documentation
+
+```bash
+:help                 # Open Glide documentation
+:tutor                # Open the Glide tutorial
+:repl                 # Start the config REPL
+```
+
+## Creating Custom Ex Commands
+
+Define your own ex commands:
+
+```typescript
+// Simple command
+const cmd = glide.excmds.create(
+  { name: "my_command", description: "My custom command" },
+  () => {
+    console.log("Command executed!");
+  }
+);
+
+// Register for TypeScript autocomplete
+declare global {
+  interface ExcmdRegistry {
+    my_command: typeof cmd;
+  }
+}
+
+// Execute your command
+await glide.excmds.execute("my_command");
+```
+
+### Commands with Arguments
+
+```typescript
+const openUrl = glide.excmds.create(
+  {
+    name: "open",
+    description: "Open a URL",
+    args_schema: {
+      url: { 
+        type: "string", 
+        required: true, 
+        position: 0,
+        description: "URL to open"
+      },
+      background: {
+        type: "boolean",
+        required: false,
+        description: "Open in background"
+      }
+    }
+  },
+  async ({ args }) => {
+    await glide.tabs.create({
+      url: args.url,
+      active: !args.background
+    });
+  }
+);
+
+// Usage: :open https://example.com --background
+```
+
+### Content Process Commands
+
+Execute commands in the content (page) process:
+
+```typescript
+const focusBody = glide.excmds.create(
+  { name: "focus_body", description: "Focus the page body" },
+  glide.content.fn(() => {
+    document.body?.focus();
+  })
+);
+```
+
+## Command Properties
+
+Each command in the registry has these properties:
+
+- `name` - Command name (used after `:`)
+- `description` - Human-readable description
+- `content` - Whether command runs in content process
+- `repeatable` - Whether command can be repeated with `.`
+- `args_schema` - Optional argument validation schema
+
+<Info>
+  All built-in ex commands are defined in `browser-excmds-registry.mts:66-467`. Commands marked with `content: true` are executed in the page content process.
+</Info>
+
+## Executing Commands Programmatically
+
+```typescript
+// Execute string command
+await glide.excmds.execute("tab_new https://glide-browser.app");
+
+// Execute with function
+await glide.excmds.execute(() => {
+  console.log("Custom logic");
+});
+
+// Check if command exists
+if (glide.excmds.is_known_command("my_command")) {
+  await glide.excmds.execute("my_command");
+}
+```
+
+## Repeating Commands
+
+Repeat the last repeatable command with `.` or `:repeat`:
+
+```typescript
+glide.keymaps.set("normal", ".", "repeat");
+```
+
+Repeatable commands include:
+- Tab operations (close, next, prev, duplicate, etc.)
+- Navigation (back, forward, go_next, go_previous)
+- Scrolling commands
+- Reload commands
+
+<Tip>
+  Use `:echo` to debug values in your config: `:echo glide.ctx.url`
+</Tip>

@@ -1,0 +1,395 @@
+---
+title: 'glide.prefs'
+description: 'API for managing Firefox preferences'
+---
+
+## Overview
+
+The `glide.prefs` API provides methods for reading and writing Firefox preferences (about:config settings). This allows you to customize Firefox behavior directly from your `glide.ts` configuration file, eliminating the need for a separate `prefs.js` file.
+
+<Info>
+  Firefox preferences are low-level settings that control browser behavior. You can view all preferences by navigating to `about:config` in Firefox.
+  
+  [Learn more about about:config](https://support.mozilla.org/en-US/kb/about-config-editor-firefox)
+</Info>
+
+## Methods
+
+### set()
+
+Set a preference value.
+
+<CodeGroup>
+```typescript Signature
+glide.prefs.set(
+  name: string,
+  value: string | number | boolean
+): void
+```
+
+```typescript Example: Basic Usage
+// Set boolean preferences
+glide.prefs.set('browser.tabs.closeWindowWithLastTab', false);
+glide.prefs.set('browser.tabs.warnOnClose', false);
+
+// Set number preferences
+glide.prefs.set('browser.tabs.tabMinWidth', 50);
+glide.prefs.set('layout.css.devPixelsPerPx', 1.25);
+
+// Set string preferences
+glide.prefs.set('browser.startup.homepage', 'https://example.com');
+glide.prefs.set('browser.search.region', 'US');
+```
+
+```typescript Example: Common Preferences
+// Disable animations
+glide.prefs.set('ui.prefersReducedMotion', 1);
+
+// Enable custom CSS (userChrome.css)
+glide.prefs.set('toolkit.legacyUserProfileCustomizations.stylesheets', true);
+
+// Increase scrollbar click jump
+glide.prefs.set('toolkit.scrollbox.pagescroll.maxOverlapPercent', 50);
+
+// Set new tab page
+glide.prefs.set('browser.newtabpage.enabled', false);
+```
+</CodeGroup>
+
+<ParamField path="name" type="string" required>
+  The name of the preference to set. This should be a valid Firefox preference key.
+</ParamField>
+
+<ParamField path="value" type="string | number | boolean" required>
+  The value to set. The type must match the preference's expected type:
+  - Boolean preferences accept `true` or `false`
+  - Integer preferences accept numbers
+  - String preferences accept strings
+</ParamField>
+
+<Warning>
+  **Important Notes:**
+  
+  1. **Top-level only**: This function is expected to be called at the top-level of your config. Calling it in callbacks may not properly apply the preference everywhere.
+  
+  2. **Restart may be required**: Some preferences require a browser restart to take effect.
+  
+  3. **No type checking**: There is no validation that the preference name exists or that the value type is correct. Invalid preferences will be silently ignored.
+</Warning>
+
+---
+
+### get()
+
+Get the value of a preference.
+
+<CodeGroup>
+```typescript Signature
+glide.prefs.get(
+  name: string
+): string | number | boolean | undefined
+```
+
+```typescript Example
+// Get preference values
+const tabMinWidth = glide.prefs.get('browser.tabs.tabMinWidth');
+console.log('Tab min width:', tabMinWidth); // e.g., 76
+
+const homepage = glide.prefs.get('browser.startup.homepage');
+console.log('Homepage:', homepage); // e.g., "about:home"
+
+const closeWithLastTab = glide.prefs.get('browser.tabs.closeWindowWithLastTab');
+console.log('Close with last tab:', closeWithLastTab); // e.g., true
+
+// Check if a preference exists
+const customPref = glide.prefs.get('my.custom.preference');
+if (customPref === undefined) {
+  console.log('Preference not defined');
+}
+```
+
+```typescript Example: Conditional Logic
+glide.keymaps.set('normal', '<leader>tp', () => {
+  const current = glide.prefs.get('browser.tabs.closeWindowWithLastTab');
+  
+  if (typeof current === 'boolean') {
+    glide.prefs.set('browser.tabs.closeWindowWithLastTab', !current);
+    console.log('Close window with last tab:', !current);
+  }
+});
+```
+</CodeGroup>
+
+<ParamField path="name" type="string" required>
+  The name of the preference to retrieve.
+</ParamField>
+
+<ResponseField name="return" type="string | number | boolean | undefined">
+  The preference value, or `undefined` if the preference is not defined. The return type matches the preference's actual type.
+</ResponseField>
+
+---
+
+### clear()
+
+Reset a preference to its default value.
+
+<CodeGroup>
+```typescript Signature
+glide.prefs.clear(name: string): void
+```
+
+```typescript Example
+// Reset preferences to defaults
+glide.prefs.clear('browser.tabs.tabMinWidth');
+glide.prefs.clear('browser.startup.homepage');
+glide.prefs.clear('layout.css.devPixelsPerPx');
+
+console.log('Preferences reset to defaults');
+```
+
+```typescript Example: Toggle with Reset
+glide.keymaps.set('normal', '<leader>tr', () => {
+  const current = glide.prefs.get('ui.prefersReducedMotion');
+  
+  if (current === 1) {
+    glide.prefs.clear('ui.prefersReducedMotion');
+    console.log('Animations enabled (default)');
+  } else {
+    glide.prefs.set('ui.prefersReducedMotion', 1);
+    console.log('Animations disabled');
+  }
+});
+```
+</CodeGroup>
+
+<ParamField path="name" type="string" required>
+  The name of the preference to reset.
+</ParamField>
+
+<Info>
+  After calling `clear()`, the preference will return to its Firefox default value. If the preference was user-defined (not a built-in Firefox preference), it will be removed entirely.
+</Info>
+
+---
+
+### scoped()
+
+Create a scoped preferences manager for temporary preference changes.
+
+<CodeGroup>
+```typescript Signature
+glide.prefs.scoped(): glide.ScopedPrefs
+```
+
+```typescript Example: Basic Usage
+{
+  using prefs = glide.prefs.scoped();
+  prefs.set('foo', true);
+  prefs.set('browser.tabs.tabMinWidth', 20);
+  
+  console.log(glide.prefs.get('foo')); // true
+  console.log(glide.prefs.get('browser.tabs.tabMinWidth')); // 20
+}
+
+// Outside the block, preferences are restored
+console.log(glide.prefs.get('foo')); // undefined
+console.log(glide.prefs.get('browser.tabs.tabMinWidth')); // original value
+```
+
+```typescript Example: Testing Configuration
+glide.keymaps.set('normal', '<leader>test', async () => {
+  const originalTabWidth = glide.prefs.get('browser.tabs.tabMinWidth');
+  
+  {
+    using prefs = glide.prefs.scoped();
+    prefs.set('browser.tabs.tabMinWidth', 50);
+    
+    // Test with modified preferences
+    await testTabBehavior();
+  }
+  
+  // Preferences automatically restored
+  console.log('Tab width restored to:', glide.prefs.get('browser.tabs.tabMinWidth'));
+});
+```
+
+```typescript Example: Temporary Changes
+async function withReducedMotion(callback: () => Promise<void>) {
+  using prefs = glide.prefs.scoped();
+  prefs.set('ui.prefersReducedMotion', 1);
+  await callback();
+  // Preference automatically restored when function exits
+}
+
+await withReducedMotion(async () => {
+  // Do something with animations disabled
+  console.log('Animations temporarily disabled');
+});
+```
+</CodeGroup>
+
+<ResponseField name="return" type="glide.ScopedPrefs">
+  A scoped preferences object that supports:
+  - `set(name, value)`: Set a temporary preference
+  - `get(name)`: Get a preference value
+  - `clear(name)`: Clear a temporary preference
+  - Automatic cleanup when the scope exits (via `Symbol.dispose`)
+</ResponseField>
+
+<Warning>
+  You **must** use the `using` keyword when assigning the scoped preferences object:
+  
+  ```typescript
+  using prefs = glide.prefs.scoped(); // ✓ Correct
+  const prefs = glide.prefs.scoped(); // ✗ Wrong - won't auto-restore
+  ```
+  
+  The `using` keyword ensures preferences are automatically restored when the scope exits, even if an error occurs.
+</Warning>
+
+<Info>
+  Scoped preferences are determined by the **lifetime of the return value**. When the scoped object goes out of scope (block ends, function returns, etc.), all preferences are automatically restored to their previous values.
+</Info>
+
+## Buffer-Specific Preferences
+
+You can also set preferences that apply only to the current buffer (tab) using `glide.buf.prefs`:
+
+```typescript
+// Set a preference for the current tab only
+glide.buf.prefs.set('layout.css.devPixelsPerPx', 1.5);
+
+// When navigating to a new tab, the preference is reset
+```
+
+<Accordion title="Buffer Prefs vs Global Prefs">
+  **Global Prefs** (`glide.prefs`):
+  - Apply browser-wide
+  - Persist across all tabs and windows
+  - Survive browser restarts (if set in config)
+  
+  **Buffer Prefs** (`glide.buf.prefs`):
+  - Apply only to the current tab
+  - Reset when navigating to a different tab
+  - Useful for tab-specific customizations
+</Accordion>
+
+## Complete Examples
+
+### Custom Browser Behavior
+
+```typescript glide.ts
+// Disable tab animations
+glide.prefs.set('browser.tabs.animate', false);
+
+// Don't close window when closing last tab
+glide.prefs.set('browser.tabs.closeWindowWithLastTab', false);
+
+// Don't warn when closing multiple tabs
+glide.prefs.set('browser.tabs.warnOnClose', false);
+glide.prefs.set('browser.tabs.warnOnCloseOtherTabs', false);
+
+// Set minimum tab width
+glide.prefs.set('browser.tabs.tabMinWidth', 50);
+
+// Disable pocket
+glide.prefs.set('extensions.pocket.enabled', false);
+```
+
+### Developer Settings
+
+```typescript glide.ts
+// Enable browser toolbox
+glide.prefs.set('devtools.chrome.enabled', true);
+glide.prefs.set('devtools.debugger.remote-enabled', true);
+
+// Enable userChrome.css
+glide.prefs.set('toolkit.legacyUserProfileCustomizations.stylesheets', true);
+
+// Disable cache during development
+glide.prefs.set('browser.cache.disk.enable', false);
+glide.prefs.set('browser.cache.memory.enable', false);
+```
+
+### Privacy & Security
+
+```typescript glide.ts
+// Enhanced tracking protection
+glide.prefs.set('privacy.trackingprotection.enabled', true);
+glide.prefs.set('privacy.trackingprotection.socialtracking.enabled', true);
+
+// Disable telemetry
+glide.prefs.set('toolkit.telemetry.enabled', false);
+glide.prefs.set('datareporting.healthreport.uploadEnabled', false);
+
+// HTTPS-only mode
+glide.prefs.set('dom.security.https_only_mode', true);
+
+// Disable WebRTC (prevents IP leaks)
+glide.prefs.set('media.peerconnection.enabled', false);
+```
+
+### Dynamic Preference Toggle
+
+```typescript glide.ts
+function togglePref(name: string, trueValue: any = true, falseValue: any = false) {
+  const current = glide.prefs.get(name);
+  const newValue = current === trueValue ? falseValue : trueValue;
+  glide.prefs.set(name, newValue);
+  return newValue;
+}
+
+glide.keymaps.set('normal', '<leader>ta', () => {
+  const state = togglePref('browser.tabs.animate');
+  console.log('Tab animations:', state ? 'enabled' : 'disabled');
+});
+
+glide.keymaps.set('normal', '<leader>tm', () => {
+  const state = togglePref('ui.prefersReducedMotion', 1, 0);
+  console.log('Reduced motion:', state === 1 ? 'enabled' : 'disabled');
+});
+```
+
+## Common Preferences Reference
+
+<Accordion title="View common Firefox preferences">
+  **Tab Behavior**
+  - `browser.tabs.closeWindowWithLastTab` - Close window when last tab closes
+  - `browser.tabs.warnOnClose` - Warn when closing multiple tabs
+  - `browser.tabs.tabMinWidth` - Minimum tab width (pixels)
+  - `browser.tabs.animate` - Enable tab animations
+  
+  **UI & Appearance**
+  - `ui.prefersReducedMotion` - Reduce animations (0=off, 1=on)
+  - `layout.css.devPixelsPerPx` - UI scale factor
+  - `toolkit.legacyUserProfileCustomizations.stylesheets` - Enable userChrome.css
+  
+  **Privacy**
+  - `privacy.trackingprotection.enabled` - Enable tracking protection
+  - `network.cookie.cookieBehavior` - Cookie policy (0=accept all, 1=reject third-party, etc.)
+  - `dom.security.https_only_mode` - HTTPS-only mode
+  
+  **Performance**
+  - `browser.cache.disk.enable` - Disk cache
+  - `browser.cache.memory.enable` - Memory cache
+  - `browser.sessionstore.interval` - Session save interval (milliseconds)
+  
+  **Developer**
+  - `devtools.chrome.enabled` - Enable browser toolbox
+  - `devtools.debugger.remote-enabled` - Enable remote debugging
+  
+  For a complete list, see `about:config` in Firefox.
+</Accordion>
+
+## Type Reference
+
+### glide.ScopedPrefs
+
+```typescript
+type ScopedPrefs = Omit<typeof glide.prefs, 'scoped'> & {
+  [Symbol.dispose](): void;
+};
+```
+
+A scoped preferences manager that automatically restores preferences when disposed. Must be used with the `using` keyword.

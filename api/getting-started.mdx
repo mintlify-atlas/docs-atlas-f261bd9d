@@ -1,0 +1,347 @@
+---
+title: "Getting Started"
+description: "Write your first Glide Browser configuration"
+---
+
+## Your First Config File
+
+Glide Browser is configured using a TypeScript file located at `~/.config/glide/glide.ts`. This file has full access to the `glide` API and executes when the browser starts.
+
+### Basic Configuration
+
+Here's a simple configuration to get you started:
+
+```typescript glide.ts
+// Set the leader key
+glide.g.mapleader = "<Space>";
+
+// Configure options
+glide.o.mapping_timeout = 300;
+glide.o.hint_size = "12px";
+glide.o.native_tabs = "autohide";
+
+// Set up basic keymaps
+glide.keymaps.set("normal", "<leader>t", async () => {
+  const tab = await glide.tabs.active();
+  console.log("Current tab:", tab.url);
+});
+
+glide.keymaps.set("normal", "<C-n>", ":tab_open about:newtab");
+```
+
+## Essential Keymaps
+
+Keymaps are the foundation of Glide's keyboard-driven interface:
+
+### Setting Keymaps
+
+```typescript
+// Map to an excmd string
+glide.keymaps.set("normal", "d", ":tab_close");
+
+// Map to a function
+glide.keymaps.set("normal", "<leader>r", async () => {
+  await glide.excmds.execute("reload");
+});
+
+// Map for multiple modes
+glide.keymaps.set(["normal", "visual"], "<Esc>", ":mode_change normal");
+
+// Buffer-local keymap (resets when leaving page)
+glide.buf.keymaps.set("normal", "K", () => {
+  console.log("This only works on the current page");
+});
+```
+
+### Common Keymap Patterns
+
+```typescript
+// Tab navigation
+glide.keymaps.set("normal", "J", ":tab_prev");
+glide.keymaps.set("normal", "K", ":tab_next");
+
+// Page navigation
+glide.keymaps.set("normal", "H", ":back");
+glide.keymaps.set("normal", "L", ":forward");
+
+// Custom tab opener
+glide.keymaps.set("normal", "<leader>g", async () => {
+  await glide.commandline.show({
+    input: "tab_open https://github.com/",
+  });
+});
+```
+
+## Working with Autocmds
+
+Autocmds allow you to run code in response to events:
+
+### URL-based Autocmds
+
+```typescript
+// Run code when visiting specific URLs
+glide.autocmds.create("UrlEnter", /github\.com/, async ({ url }) => {
+  console.log("Visited GitHub:", url.href);
+  glide.bo.hint_size = "14px";
+});
+
+// Match multiple patterns
+glide.autocmds.create("UrlEnter", /(reddit|twitter)\.com/, ({ url }) => {
+  // Apply custom CSS for social media sites
+  glide.styles.add(`
+    body { filter: grayscale(100%); }
+  `, { id: "social-media-grayscale" });
+});
+```
+
+### Mode Change Autocmds
+
+```typescript
+// Run code when entering insert mode
+glide.autocmds.create("ModeChanged", "*:insert", ({ new_mode }) => {
+  console.log("Entered insert mode");
+});
+
+// Leaving visual mode
+glide.autocmds.create("ModeChanged", "visual:*", ({ old_mode, new_mode }) => {
+  console.log(`Switched from ${old_mode} to ${new_mode}`);
+});
+```
+
+### Config Load Autocmd
+
+```typescript
+glide.autocmds.create("ConfigLoaded", () => {
+  console.log("Config loaded!");
+});
+```
+
+## Content Process Execution
+
+Execute code in the webpage context:
+
+```typescript
+// Execute in the active tab
+glide.keymaps.set("normal", "<leader>h", async () => {
+  const tab = await glide.tabs.active();
+  
+  await glide.content.execute((text) => {
+    // This runs in the webpage context
+    document.body.innerHTML = `<h1>${text}</h1>`;
+  }, {
+    tab_id: tab,
+    args: ["Hello from Glide!"],
+  });
+});
+
+// Create content-aware excmds
+glide.excmds.create(
+  { name: "focus_page" },
+  glide.content.fn(() => {
+    document.body?.focus();
+  })
+);
+```
+
+## Custom Hints
+
+Customize hint behavior and appearance:
+
+```typescript
+// Show hints with custom selector
+glide.keymaps.set("normal", "<leader>i", () => {
+  glide.hints.show({
+    selector: "img",
+    action: (element) => {
+      // Download the image
+      const img = element as HTMLImageElement;
+      console.log("Image src:", img.src);
+    },
+  });
+});
+
+// Custom label generator
+glide.o.hint_label_generator = glide.hints.label_generators.numeric;
+
+// Editable fields only
+glide.keymaps.set("normal", "gi", () => {
+  glide.hints.show({
+    editable: true,
+    auto_activate: true,
+  });
+});
+```
+
+## Managing Tabs
+
+Query and manipulate browser tabs:
+
+```typescript
+// Get active tab
+const tab = await glide.tabs.active();
+console.log(tab.url, tab.title);
+
+// Query tabs
+const allTabs = await glide.tabs.query({});
+const youtubeTabs = await glide.tabs.query({ url: "*://*.youtube.com/*" });
+
+// Unload tabs to save memory
+glide.keymaps.set("normal", "<leader>u", async () => {
+  const tabs = await glide.tabs.query({ audible: false });
+  const inactiveTabs = tabs.filter(t => !t.active);
+  await glide.tabs.unload(...inactiveTabs);
+});
+```
+
+## Styling the Browser UI
+
+Add custom CSS to modify the browser interface:
+
+```typescript
+// Hide the tab bar
+glide.styles.add(`
+  #TabsToolbar {
+    visibility: collapse !important;
+  }
+`, { id: "hide-tabs" });
+
+// Custom findbar styling
+glide.styles.add(`
+  .findbar-container {
+    background: #1e1e1e !important;
+    color: #d4d4d4 !important;
+  }
+`, { id: "dark-findbar" });
+
+// Remove styles later
+glide.styles.remove("hide-tabs");
+```
+
+## Working with Files
+
+Read and write configuration files:
+
+```typescript
+// Read a CSS file
+const customCSS = await glide.fs.read("custom.css", "utf8");
+glide.styles.add(customCSS, { id: "custom-styles" });
+
+// Write data to a file
+await glide.fs.write("bookmarks.json", JSON.stringify(bookmarks));
+
+// Check if file exists
+if (await glide.fs.exists("settings.json")) {
+  const settings = JSON.parse(await glide.fs.read("settings.json", "utf8"));
+}
+
+// Get file info
+const stat = await glide.fs.stat("config.ts");
+console.log("Last modified:", new Date(stat.last_modified));
+```
+
+## Installing Extensions
+
+Automatically install browser extensions:
+
+```typescript
+// Install uBlock Origin
+await glide.addons.install(
+  "https://addons.mozilla.org/firefox/downloads/file/4391697/ublock_origin-1.61.2.xpi",
+  { private_browsing_allowed: true }
+);
+
+// List installed extensions
+const extensions = await glide.addons.list("extension");
+console.log("Installed:", extensions.map(e => e.name));
+```
+
+## Adding Search Engines
+
+Define custom search engines:
+
+```typescript
+glide.search_engines.add({
+  name: "GitHub",
+  keyword: "gh",
+  search_url: "https://github.com/search?q={searchTerms}",
+  favicon_url: "https://github.com/favicon.ico",
+});
+
+// Now you can use: :open gh glide-browser
+```
+
+## Advanced Patterns
+
+### Conditional Configuration
+
+```typescript
+// OS-specific configuration
+if (glide.ctx.os === "macosx") {
+  glide.keymaps.set("normal", "<D-t>", ":tab_open");
+} else {
+  glide.keymaps.set("normal", "<C-t>", ":tab_open");
+}
+
+// URL-based buffer options
+glide.autocmds.create("UrlEnter", /localhost/, () => {
+  glide.buf.prefs.set("devtools.debugger.enabled", true);
+});
+```
+
+### Modular Configuration
+
+```typescript
+// Split config into multiple files
+await glide.include("keymaps.ts");
+await glide.include("autocmds.ts");
+await glide.include("styling.ts");
+```
+
+### Creating Custom Excmds
+
+```typescript
+const myCmd = glide.excmds.create(
+  {
+    name: "hello",
+    description: "Say hello",
+    args: [{ name: "name", optional: true }],
+  },
+  ({ args }) => {
+    const name = args.name ?? "World";
+    console.log(`Hello, ${name}!`);
+  }
+);
+
+// Register for type safety
+declare global {
+  interface ExcmdRegistry {
+    hello: typeof myCmd;
+  }
+}
+
+// Now you can use: :hello Glide
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="API Reference" icon="book" href="/api/overview">
+    Explore the complete API documentation
+  </Card>
+  
+  <Card title="Examples" icon="code" href="/examples">
+    Browse advanced configuration examples
+  </Card>
+  
+  <Card title="Keymaps" icon="keyboard" href="/api/keymaps">
+    Deep dive into keymap configuration
+  </Card>
+  
+  <Card title="Autocmds" icon="bolt" href="/api/autocmds">
+    Learn about event-driven automation
+  </Card>
+</CardGroup>
+
+<Note>
+  **Pro tip:** Use TypeScript's autocomplete in your editor by ensuring your `glide.ts` file is properly set up with type definitions.
+</Note>

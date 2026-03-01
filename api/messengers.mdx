@@ -1,0 +1,225 @@
+---
+title: 'glide.messengers'
+description: 'Create type-safe IPC communication channels between main and content processes'
+---
+
+The `glide.messengers` API enables bidirectional, type-safe communication between the main browser process and content processes.
+
+## glide.messengers.create()
+
+Create a messenger that can communicate with content processes.
+
+```typescript
+glide.messengers.create<Messages>(
+  receiver: (message: glide.Message<Messages>) => void
+): glide.ParentMessenger<Messages>
+```
+
+### Parameters
+
+<ParamField path="receiver" type="function" required>
+  Callback invoked when messages are sent from the content process
+  
+  **Arguments:**
+  - `message` - Object containing `name` and `data` properties based on your message type definitions
+</ParamField>
+
+### Returns
+
+Returns a `ParentMessenger` object with:
+
+<ResponseField name="content.execute" type="function">
+  Execute a callback in the content process with access to a messenger
+  
+  **Parameters:**
+  - `callback` - Function that receives a `ContentMessenger` as first argument
+  - `opts.tab_id` - Tab ID or tab object where the callback will execute
+</ResponseField>
+
+## Type Definitions
+
+### ParentMessenger
+
+```typescript
+interface ParentMessenger<Messages extends Record<string, any>> {
+  content: {
+    execute: (
+      callback: (messenger: glide.ContentMessenger<Messages>) => void,
+      opts: { tab_id: number | glide.TabWithID }
+    ) => void;
+  };
+}
+```
+
+### ContentMessenger
+
+```typescript
+interface ContentMessenger<Messages extends Record<string, any>> {
+  send<MessageName extends keyof Messages>(name: MessageName): void;
+}
+```
+
+## Usage Examples
+
+### Basic Message Passing
+
+Create a messenger and send messages from content to main process:
+
+```typescript
+// Define message types
+type MyMessages = {
+  element_focused: { element_id: string };
+  scroll_position: { x: number; y: number };
+};
+
+// Create messenger in main process
+const messenger = glide.messengers.create<MyMessages>((message) => {
+  switch (message.name) {
+    case "element_focused": {
+      console.log("Element focused:", message.data.element_id);
+      break;
+    }
+    case "scroll_position": {
+      console.log("Scroll:", message.data.x, message.data.y);
+      break;
+    }
+  }
+});
+
+// Set up content process listener
+glide.keymaps.set("normal", "gm", ({ tab_id }) => {
+  messenger.content.execute((messenger) => {
+    // Send message from content process
+    document.addEventListener('focusin', (event) => {
+      if (event.target instanceof HTMLElement) {
+        messenger.send('element_focused', {
+          element_id: event.target.id
+        });
+      }
+    });
+  }, { tab_id });
+});
+```
+
+### Tracking User Interactions
+
+Monitor specific user interactions within web pages:
+
+```typescript
+const interactionMessenger = glide.messengers.create<{
+  link_hovered: { href: string; text: string };
+  form_submitted: { action: string };
+}>((message) => {
+  switch (message.name) {
+    case "link_hovered": {
+      // Show link preview in status bar
+      console.log(`Hovering: ${message.data.text} -> ${message.data.href}`);
+      break;
+    }
+    case "form_submitted": {
+      console.log(`Form submitted to: ${message.data.action}`);
+      break;
+    }
+  }
+});
+
+glide.autocmds.create("UrlEnter", /./, ({ tab_id }) => {
+  interactionMessenger.content.execute((messenger) => {
+    // Track link hovers
+    document.addEventListener('mouseover', (e) => {
+      if (e.target instanceof HTMLAnchorElement) {
+        messenger.send('link_hovered', {
+          href: e.target.href,
+          text: e.target.textContent || ''
+        });
+      }
+    });
+    
+    // Track form submissions
+    document.addEventListener('submit', (e) => {
+      if (e.target instanceof HTMLFormElement) {
+        messenger.send('form_submitted', {
+          action: e.target.action
+        });
+      }
+    });
+  }, { tab_id });
+});
+```
+
+### Simple Notification System
+
+```typescript
+const notifier = glide.messengers.create<{ notify: null }>((message) => {
+  switch (message.name) {
+    case "notify": {
+      console.log("Notification received from content!");
+      break;
+    }
+  }
+});
+
+glide.keymaps.set("normal", "gt", ({ tab_id }) => {
+  notifier.content.execute((messenger) => {
+    messenger.send('notify');
+  }, { tab_id });
+});
+```
+
+## Error Handling
+
+If an error occurs in the receiver callback, Glide will display a notification with the error message:
+
+```typescript
+const messenger = glide.messengers.create<{ test: null }>(() => {
+  throw new Error("Something went wrong");
+});
+
+// Error notification will be shown:
+// "Error occurred in messenger receiver - Error: Something went wrong"
+```
+
+## Communication Flow
+
+1. **Create messenger** in main process with `glide.messengers.create()`
+2. **Define receiver** to handle incoming messages
+3. **Execute in content** using `messenger.content.execute()`
+4. **Send messages** from content process using `messenger.send()`
+5. **Receive in main** process via the receiver callback
+
+## Type Safety
+
+Messengers provide full TypeScript type safety:
+
+- Message names are restricted to keys of your `Messages` type
+- Message data types are inferred from your definitions
+- Invalid message names or data cause compile-time errors
+
+```typescript
+type Messages = {
+  valid_message: { count: number };
+};
+
+const m = glide.messengers.create<Messages>((msg) => {
+  // TypeScript knows msg.name can only be "valid_message"
+  // and msg.data is { count: number }
+});
+
+m.content.execute((messenger) => {
+  messenger.send('valid_message', { count: 42 }); // ✓ OK
+  messenger.send('invalid', { count: 42 });       // ✗ Type error
+  messenger.send('valid_message', { wrong: 0 });  // ✗ Type error
+}, { tab_id });
+```
+
+## Limitations
+
+- Communication is currently **uni-directional**: content → main process only
+- The `messenger.content.execute()` callback **cannot accept custom arguments** (unlike `glide.content.execute()`)
+- Only one message can be sent per `messenger.send()` call
+
+## See Also
+
+- [glide.content](/api/content) - Execute code in content processes
+- [glide.excmds](/api/excmds) - Create custom commands
+- [glide.keymaps](/api/keymaps) - Define keyboard mappings

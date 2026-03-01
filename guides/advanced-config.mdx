@@ -1,0 +1,553 @@
+---
+title: Advanced Configuration
+description: Advanced techniques for organizing and modularizing Glide configuration
+---
+
+# Advanced Configuration
+
+This guide covers advanced configuration patterns including file organization, modular config systems, and complex automation.
+
+## Config File Organization
+
+### Include System
+
+Split your config into multiple files using `glide.include()`:
+
+```typescript
+// glide.ts (main config)
+glide.include("keymaps.glide.ts");
+glide.include("options.glide.ts");
+glide.include("autocmds.glide.ts");
+```
+
+```typescript
+// keymaps.glide.ts
+glide.keymaps.set("normal", "<leader>r", "config_reload");
+glide.keymaps.set("normal", "<leader>e", "config_edit");
+```
+
+```typescript
+// options.glide.ts
+glide.g.mapleader = "<Space>";
+glide.o.which_key_delay = 500;
+glide.o.hint_chars = "asdfghjkl";
+```
+
+### Path Resolution
+
+Relative paths are resolved relative to the current file:
+
+```typescript
+// glide.ts
+glide.include("plugins/github/init.ts");
+
+// plugins/github/init.ts
+glide.include("keymaps.ts"); // Resolves to plugins/github/keymaps.ts
+```
+
+Absolute paths:
+
+```typescript
+glide.include(glide.path.join(
+  glide.path.profile_dir,
+  "glide",
+  "shared.glide.ts"
+));
+```
+
+### File System API
+
+Read and write files relative to your config:
+
+```typescript
+// Read config data
+const data = await glide.fs.read("data.json", "utf8");
+const config = JSON.parse(data);
+
+// Write config data
+await glide.fs.write("cache.json", JSON.stringify({ ... }));
+
+// Check file existence
+if (await glide.fs.exists("custom.css")) {
+  const css = await glide.fs.read("custom.css", "utf8");
+  glide.styles.add(css);
+}
+```
+
+### File Information
+
+```typescript
+const stat = await glide.fs.stat("userChrome.css");
+console.log(stat.last_modified); // 1758835015092
+console.log(stat.type); // "file"
+```
+
+### Directory Operations
+
+```typescript
+// Create directory
+await glide.fs.mkdir("plugins/custom");
+
+// Create without parents
+await glide.fs.mkdir("plugins/custom", { parents: false });
+
+// Error if exists
+await glide.fs.mkdir("plugins", { exists_ok: false });
+```
+
+## Modular Plugin System
+
+### Plugin Structure
+
+Organize features as plugins:
+
+```
+glide/
+├── glide.ts
+└── plugins/
+    ├── github/
+    │   ├── init.ts
+    │   ├── keymaps.ts
+    │   └── autocmds.ts
+    ├── reddit/
+    │   ├── init.ts
+    │   └── styles.css
+    └── tabs/
+        └── init.ts
+```
+
+### Plugin Loader
+
+```typescript
+// glide.ts
+const PLUGINS = [
+  "github",
+  "reddit",
+  "tabs"
+];
+
+for (const plugin of PLUGINS) {
+  try {
+    glide.include(`plugins/${plugin}/init.ts`);
+  } catch (err) {
+    console.error(`Failed to load plugin ${plugin}:`, err);
+  }
+}
+```
+
+### Plugin Example
+
+```typescript
+// plugins/github/init.ts
+glide.autocmds.create("UrlEnter", { hostname: "github.com" }, () => {
+  // Load GitHub-specific keymaps
+  glide.include("keymaps.ts");
+  
+  // Load GitHub-specific autocmds
+  glide.include("autocmds.ts");
+});
+```
+
+```typescript
+// plugins/github/keymaps.ts
+glide.buf.keymaps.set("normal", "<leader>gi", async () => {
+  const url = glide.ctx.url;
+  const parts = url.pathname.split("/").filter(Boolean);
+  url.pathname = `/${parts[0]}/${parts[1]}/issues`;
+  await browser.tabs.update({ url: url.toString() });
+}, { description: "Go to issues" });
+
+glide.buf.keymaps.set("normal", "<leader>gp", async () => {
+  const url = glide.ctx.url;
+  const parts = url.pathname.split("/").filter(Boolean);
+  url.pathname = `/${parts[0]}/${parts[1]}/pulls`;
+  await browser.tabs.update({ url: url.toString() });
+}, { description: "Go to pull requests" });
+```
+
+### Loading External Styles
+
+```typescript
+// plugins/reddit/init.ts
+glide.autocmds.create("UrlEnter", { hostname: "reddit.com" }, async () => {
+  try {
+    const css = await glide.fs.read("styles.css", "utf8");
+    glide.styles.add(css, { id: 'reddit-custom' });
+    
+    return () => {
+      glide.styles.remove('reddit-custom');
+    };
+  } catch (err) {
+    console.warn("Could not load reddit styles:", err);
+  }
+});
+```
+
+## Environment Variables
+
+Manage environment variables from your config:
+
+```typescript
+// Get environment variable
+const editor = glide.env.get("EDITOR");
+if (!editor) {
+  console.warn("EDITOR not set");
+}
+
+// Set environment variable
+glide.env.set("PATH", "/usr/local/bin:/usr/bin:/bin");
+
+// Delete environment variable
+glide.env.delete("DEBUG");
+```
+
+### macOS PATH Configuration
+
+<Note>
+On macOS, applications don't inherit your shell environment. Set the PATH manually:
+</Note>
+
+```typescript
+if (glide.ctx.os === "macosx") {
+  glide.env.set("PATH", "/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin");
+}
+```
+
+## Process Spawning
+
+### Basic Process Spawning
+
+```typescript
+glide.keymaps.set("normal", "<leader>t", async () => {
+  await glide.process.spawn("kitty", ["nvim", "glide.ts"], {
+    cwd: glide.path.join(glide.path.home_dir, ".config/glide")
+  });
+});
+```
+
+### Execute and Wait
+
+```typescript
+glide.keymaps.set("normal", "<leader>c", async () => {
+  const result = await glide.process.execute("git", ["status"], {
+    cwd: glide.path.home_dir
+  });
+  
+  console.log(`Exit code: ${result.exit_code}`);
+  console.log(`Output: ${result.stdout}`);
+});
+```
+
+### Process Options
+
+```typescript
+interface SpawnOptions {
+  /** Working directory */
+  cwd?: string;
+  
+  /** Environment variables */
+  env?: Record<string, string>;
+  
+  /** Check exit code (throw on non-zero) */
+  check_exit_code?: boolean; // default: true
+}
+```
+
+Example:
+
+```typescript
+try {
+  await glide.process.execute("npm", ["test"], {
+    cwd: "/path/to/project",
+    check_exit_code: true
+  });
+} catch (err) {
+  console.error("Tests failed:", err);
+}
+```
+
+## Path Utilities
+
+### Path Information
+
+```typescript
+console.log(glide.path.cwd);         // Current working directory
+console.log(glide.path.home_dir);    // Home directory
+console.log(glide.path.temp_dir);    // Temporary directory
+console.log(glide.path.profile_dir); // Firefox profile directory
+```
+
+### Path Joining
+
+```typescript
+const config_path = glide.path.join(
+  glide.path.home_dir,
+  ".config",
+  "glide",
+  "glide.ts"
+);
+```
+
+<Warning>
+`glide.path.join()` throws an error on absolute paths. Use relative paths only.
+</Warning>
+
+## Type Extensions
+
+### Custom Options
+
+Define your own typed options:
+
+```typescript
+declare global {
+  interface GlideOptions {
+    // Simple types
+    auto_reload?: boolean;
+    theme_name?: string;
+    tab_limit?: number;
+    
+    // Complex types
+    custom_engines?: Array<{
+      name: string;
+      url: string;
+    }>;
+    
+    // Union types
+    panel_position?: "left" | "right" | "bottom";
+  }
+}
+
+glide.o.auto_reload = true;
+glide.o.theme_name = "nord";
+glide.o.custom_engines = [
+  { name: "DuckDuckGo", url: "https://duckduckgo.com/?q={searchTerms}" }
+];
+```
+
+### Custom Globals
+
+```typescript
+declare global {
+  interface GlideGlobals {
+    // State
+    session_start?: number;
+    page_visits?: Map<string, number>;
+    
+    // Configuration
+    plugin_config?: Record<string, any>;
+    
+    // Utilities
+    utils?: {
+      format_date(ts: number): string;
+    };
+  }
+}
+
+glide.g.session_start = Date.now();
+glide.g.page_visits = new Map();
+
+glide.g.utils = {
+  format_date(ts: number) {
+    return new Date(ts).toISOString();
+  }
+};
+```
+
+### Custom Modes
+
+Register custom modes:
+
+```typescript
+declare global {
+  interface GlideModes {
+    leap: "leap";
+    peek: "peek";
+  }
+}
+
+glide.modes.register("leap", { caret: "block" });
+glide.modes.register("peek", { caret: "underline" });
+
+// Now you can use them
+glide.keymaps.set("leap", "<Esc>", "mode_change normal");
+```
+
+## Advanced Autocmd Patterns
+
+### Multi-Pattern Matching
+
+```typescript
+const DEV_HOSTS = ["localhost", "127.0.0.1", "0.0.0.0"];
+
+glide.autocmds.create("UrlEnter", /./, ({ url }) => {
+  const hostname = new URL(url).hostname;
+  
+  if (DEV_HOSTS.includes(hostname)) {
+    glide.buf.keymaps.set("normal", "<leader>r", async () => {
+      const tab = await glide.tabs.active();
+      await browser.tabs.reload(tab.id);
+    });
+  }
+});
+```
+
+### Autocmd Chains
+
+```typescript
+glide.autocmds.create("UrlEnter", { hostname: "github.com" }, () => {
+  console.log("Entered GitHub");
+});
+
+glide.autocmds.create("UrlEnter", { hostname: "github.com" }, () => {
+  console.log("Still GitHub");
+});
+
+glide.autocmds.create("UrlEnter", { hostname: "github.com" }, () => {
+  console.log("More GitHub setup");
+});
+// All three fire in order
+```
+
+### State Cleanup
+
+```typescript
+declare global {
+  interface GlideGlobals {
+    github_state?: { repo: string };
+  }
+}
+
+glide.autocmds.create("UrlEnter", { hostname: "github.com" }, () => {
+  const parts = glide.ctx.url.pathname.split("/").filter(Boolean);
+  
+  if (parts.length >= 2) {
+    glide.g.github_state = { repo: `${parts[0]}/${parts[1]}` };
+  }
+  
+  return () => {
+    delete glide.g.github_state;
+  };
+});
+```
+
+## Messengers (IPC)
+
+Communicate between main and content processes:
+
+```typescript
+type Messages = {
+  focus_detected: { element_id: string };
+  scroll_position: { x: number; y: number };
+};
+
+const messenger = glide.messengers.create<Messages>((message) => {
+  switch (message.name) {
+    case "focus_detected":
+      console.log(`Element focused: ${message.data.element_id}`);
+      break;
+    case "scroll_position":
+      console.log(`Scroll: x=${message.data.x}, y=${message.data.y}`);
+      break;
+  }
+});
+
+glide.keymaps.set("normal", "<leader>m", async ({ tab_id }) => {
+  await messenger.content.execute((messenger) => {
+    document.addEventListener('focusin', (event) => {
+      if (event.target.id) {
+        messenger.send('focus_detected', { element_id: event.target.id });
+      }
+    });
+    
+    window.addEventListener('scroll', () => {
+      messenger.send('scroll_position', { 
+        x: window.scrollX, 
+        y: window.scrollY 
+      });
+    });
+  }, { tab_id });
+});
+```
+
+## Search Engine Management
+
+Add custom search engines:
+
+```typescript
+glide.search_engines.add({
+  name: "Glide Docs",
+  keyword: "glide",
+  search_url: "https://glide-browser.app/search?q={searchTerms}",
+  favicon_url: "https://glide-browser.app/favicon.ico"
+});
+
+glide.search_engines.add({
+  name: "Hacker News",
+  keyword: "hn",
+  search_url: "https://hn.algolia.com/?q={searchTerms}"
+});
+```
+
+<Note>
+Search engines are not automatically removed when deleted from config. Remove them manually via `about:preferences#search`.
+</Note>
+
+## Performance Optimization
+
+### Lazy Loading
+
+```typescript
+let github_loaded = false;
+
+glide.autocmds.create("UrlEnter", { hostname: "github.com" }, () => {
+  if (!github_loaded) {
+    glide.include("plugins/github/init.ts");
+    github_loaded = true;
+  }
+});
+```
+
+### Conditional Features
+
+```typescript
+const ENABLE_ADVANCED_FEATURES = true;
+
+if (ENABLE_ADVANCED_FEATURES) {
+  glide.include("advanced/init.ts");
+}
+```
+
+### Debouncing
+
+```typescript
+let timeout: number | null = null;
+
+glide.autocmds.create("KeyStateChanged", ({ sequence }) => {
+  if (timeout) clearTimeout(timeout);
+  
+  timeout = setTimeout(() => {
+    console.log("User stopped typing:", sequence);
+  }, 500);
+});
+```
+
+## Configuration Reload Handling
+
+```typescript
+glide.autocmds.create("ConfigLoaded", () => {
+  const is_reload = glide.g.session_start !== undefined;
+  
+  if (is_reload) {
+    console.log("Config reloaded");
+  } else {
+    console.log("Initial load");
+    glide.g.session_start = Date.now();
+  }
+});
+```
+
+## See Also
+
+- [Config Basics](/concepts/configuration) - Getting started
+- [Autocmds](/guides/autocmds) - Event system
+- [Customization](/guides/customization) - Styling and options

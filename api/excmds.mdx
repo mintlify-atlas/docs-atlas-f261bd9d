@@ -1,0 +1,398 @@
+---
+title: 'glide.excmds'
+description: 'Create and execute custom ex-style commands'
+---
+
+The `glide.excmds` API allows you to create custom commands that can be invoked from the commandline or via `glide.excmds.execute()`.
+
+## glide.excmds.execute()
+
+Execute an ex command programmatically.
+
+```typescript
+glide.excmds.execute(cmd: glide.ExcmdString): Promise<void>
+```
+
+### Parameters
+
+<ParamField path="cmd" type="string" required>
+  The command to execute, same format as typing in the commandline
+  
+  **Examples:**
+  - `"tab_new"`
+  - `"tab_new https://example.com"`
+  - `"set yank_highlight #ff0000"`
+</ParamField>
+
+### Returns
+
+A Promise that resolves when the command completes.
+
+### Example
+
+```typescript
+// Execute builtin command
+await glide.excmds.execute("tab_new");
+
+// Execute with arguments
+await glide.excmds.execute("tab_new https://glide-browser.app");
+
+// Execute custom command
+await glide.excmds.execute("my_custom_command arg1 arg2");
+```
+
+## glide.excmds.create()
+
+Create a new custom ex command.
+
+```typescript
+glide.excmds.create<Excmd>(
+  info: Excmd,
+  fn: glide.ExcmdCallback | glide.ExcmdContentCallback
+): Excmd
+```
+
+### Parameters
+
+<ParamField path="info" type="object" required>
+  Command metadata
+  
+  <Expandable title="properties">
+    <ParamField path="name" type="string" required>
+      Command name (must be unique)
+    </ParamField>
+    
+    <ParamField path="description" type="string">
+      Optional description shown in commandline completions
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField path="fn" type="function" required>
+  Command callback function, executed in main process or content process
+  
+  **Main process signature:**
+  ```typescript
+  (props: { tab_id: number; args_arr: string[] }) => void | Promise<void>
+  ```
+  
+  **Content process signature:**
+  ```typescript
+  glide.content.fn((props: { args_arr: string[] }) => void)
+  ```
+</ParamField>
+
+### Returns
+
+The `info` object passed in (for type declaration).
+
+## Callback Properties
+
+### ExcmdCallbackProps (Main Process)
+
+<ResponseField name="tab_id" type="number">
+  The ID of the currently active tab
+</ResponseField>
+
+<ResponseField name="args_arr" type="string[]">
+  Array of arguments passed to the command
+  
+  **Examples:**
+  - `"foo"` → `[]`
+  - `"foo -r"` → `["-r"]`
+  - `"foo -r 'string with spaces'"` → `["-r", "string with spaces"]`
+</ResponseField>
+
+### ExcmdContentCallbackProps (Content Process)
+
+<ResponseField name="args_arr" type="string[]">
+  Array of arguments passed to the command (same format as main process)
+</ResponseField>
+
+## Usage Examples
+
+### Basic Command
+
+Create a simple command that logs a message:
+
+```typescript
+const cmd = glide.excmds.create(
+  { 
+    name: "hello",
+    description: "Print a greeting" 
+  },
+  () => {
+    console.log("Hello, Glide!");
+  }
+);
+
+// Register type
+declare global {
+  interface ExcmdRegistry {
+    hello: typeof cmd;
+  }
+}
+
+// Execute: :hello
+```
+
+### Command with Arguments
+
+Process arguments passed to your command:
+
+```typescript
+const cmd = glide.excmds.create(
+  { 
+    name: "greet",
+    description: "Greet someone by name" 
+  },
+  ({ args_arr }) => {
+    const name = args_arr[0] || "World";
+    console.log(`Hello, ${name}!`);
+  }
+);
+
+declare global {
+  interface ExcmdRegistry {
+    greet: typeof cmd;
+  }
+}
+
+// Execute: :greet Alice
+// Output: "Hello, Alice!"
+```
+
+### Content Process Command
+
+Create a command that operates in the content process:
+
+```typescript
+const cmd = glide.excmds.create(
+  { 
+    name: "focus_page",
+    description: "Focus the page body" 
+  },
+  glide.content.fn(() => {
+    document.body?.focus();
+  })
+);
+
+declare global {
+  interface ExcmdRegistry {
+    focus_page: typeof cmd;
+  }
+}
+
+// Execute: :focus_page
+```
+
+### Tab-Aware Command
+
+Use the `tab_id` to work with specific tabs:
+
+```typescript
+const cmd = glide.excmds.create(
+  { 
+    name: "log_url",
+    description: "Log the current tab URL" 
+  },
+  async ({ tab_id }) => {
+    const tab = await browser.tabs.get(tab_id);
+    console.log(`Current URL: ${tab.url}`);
+  }
+);
+
+declare global {
+  interface ExcmdRegistry {
+    log_url: typeof cmd;
+  }
+}
+```
+
+### Command with Complex Arguments
+
+Parse and validate command arguments:
+
+```typescript
+const cmd = glide.excmds.create(
+  { 
+    name: "open_in_split",
+    description: "Open URL in split view" 
+  },
+  async ({ tab_id, args_arr }) => {
+    if (args_arr.length === 0) {
+      console.error("Usage: open_in_split <url>");
+      return;
+    }
+    
+    const url = args_arr[0];
+    const newTab = await browser.tabs.create({ url });
+    
+    // Create split view
+    glide.unstable.split_views.create([tab_id, newTab.id!]);
+  }
+);
+
+declare global {
+  interface ExcmdRegistry {
+    open_in_split: typeof cmd;
+  }
+}
+
+// Execute: :open_in_split https://example.com
+```
+
+### Notification Command
+
+Create a command that shows browser notifications:
+
+```typescript
+const cmd = glide.excmds.create(
+  { 
+    name: "notify",
+    description: "Show a notification" 
+  },
+  ({ args_arr }) => {
+    const message = args_arr.join(" ") || "No message";
+    
+    browser.notifications.create({
+      type: "basic",
+      title: "Glide Notification",
+      message: message
+    });
+  }
+);
+
+declare global {
+  interface ExcmdRegistry {
+    notify: typeof cmd;
+  }
+}
+
+// Execute: :notify Hello World
+```
+
+### Content Manipulation Command
+
+Modify page content from the content process:
+
+```typescript
+const cmd = glide.excmds.create(
+  { 
+    name: "highlight_all",
+    description: "Highlight all text on the page" 
+  },
+  glide.content.fn(({ args_arr }) => {
+    const color = args_arr[0] || "yellow";
+    const elements = document.querySelectorAll("p, span, div");
+    
+    elements.forEach((el) => {
+      if (el instanceof HTMLElement) {
+        el.style.backgroundColor = color;
+      }
+    });
+  })
+);
+
+declare global {
+  interface ExcmdRegistry {
+    highlight_all: typeof cmd;
+  }
+}
+
+// Execute: :highlight_all #ffff00
+```
+
+## Type Declaration
+
+After creating a command, you **must** register it in the global type registry:
+
+```typescript
+const cmd = glide.excmds.create(
+  { name: "my_excmd", description: "..." },
+  () => { /* ... */ }
+);
+
+// Required for TypeScript autocomplete
+declare global {
+  interface ExcmdRegistry {
+    my_excmd: typeof cmd;
+  }
+}
+```
+
+This enables:
+- Autocomplete in `glide.excmds.execute()`
+- Type checking for command names
+- IntelliSense in your editor
+
+## Built-in Commands
+
+Glide includes many built-in commands. See the [Command Line feature page](/features/commandline) for a complete list.
+
+Common examples:
+- `:tab_new [url]` - Create a new tab
+- `:tab_close` - Close current tab
+- `:reload` - Reload the page
+- `:set <option> <value>` - Set an option
+- `:clear` - Clear notifications
+
+## Invocation Methods
+
+### Via Commandline
+
+Press `:` to open the commandline and type your command:
+
+```
+:my_command arg1 arg2
+```
+
+### Programmatically
+
+Call `glide.excmds.execute()` from anywhere:
+
+```typescript
+await glide.excmds.execute("my_command arg1 arg2");
+```
+
+### From Keymaps
+
+Bind commands to keyboard shortcuts:
+
+```typescript
+glide.keymaps.set("normal", "<leader>mc", "my_command arg1 arg2");
+```
+
+## Argument Parsing
+
+Arguments are split by whitespace and quotes:
+
+```typescript
+glide.excmds.create({ name: "test" }, ({ args_arr }) => {
+  console.log(args_arr);
+});
+
+// :test Hello world
+// Output: ["Hello", "world"]
+
+// :test "Hello world"
+// Output: ["Hello world"]
+
+// :test "Hello world" foo
+// Output: ["Hello world", "foo"]
+```
+
+## Best Practices
+
+1. **Always provide descriptions** - Helps users discover commands in the commandline
+2. **Validate arguments** - Check `args_arr` length and content before use
+3. **Use meaningful names** - Command names should be clear and memorable
+4. **Handle errors gracefully** - Log errors or show notifications for invalid input
+5. **Register types** - Always add commands to `ExcmdRegistry` for type safety
+
+## See Also
+
+- [glide.commandline](/api/commandline) - Control the commandline UI
+- [glide.keymaps](/api/keymaps) - Bind commands to keys
+- [glide.content](/api/content) - Execute code in content processes
+- [Command Line](/features/commandline) - List of built-in commands

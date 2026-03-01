@@ -1,0 +1,178 @@
+---
+title: Installation
+description: Install Glide Browser on macOS, Linux, or Windows
+---
+
+## System Requirements
+
+Before installing Glide Browser, ensure your system meets the Firefox requirements:
+
+- **macOS**: See [macOS build requirements](https://firefox-source-docs.mozilla.org/setup/macos_build.html)
+- **Linux**: See [Linux build requirements](https://firefox-source-docs.mozilla.org/setup/linux_build.html)
+- **Windows**: Experimental support via [WSL](https://firefox-source-docs.mozilla.org/setup/windows_wsl_build.html)
+
+## macOS Installation
+
+<Tabs>
+  <Tab title="Homebrew (Recommended)">
+    Install Glide Browser using Homebrew:
+
+    ```bash
+    brew install --cask glide-browser
+    ```
+
+    This is the recommended installation method for macOS users.
+  </Tab>
+  <Tab title="Direct Download">
+    Download the appropriate installer for your Mac:
+
+    **Apple Silicon (M1/M2/M3/M4)**
+    ```bash
+    curl -LO https://github.com/glide-browser/glide/releases/download/0.1.59a/glide.macos-aarch64.dmg
+    ```
+
+    **Intel**
+    ```bash
+    curl -LO https://github.com/glide-browser/glide/releases/download/0.1.59a/glide.macos-x86_64.dmg
+    ```
+
+    Then open the downloaded `.dmg` file and drag Glide to your Applications folder.
+  </Tab>
+</Tabs>
+
+## Linux Installation
+
+<Tabs>
+  <Tab title="Arch Linux (AUR)">
+    Install from the AUR using your preferred AUR helper:
+
+    ```bash
+    paru -S glide-browser-bin
+    ```
+
+    Or with yay:
+
+    ```bash
+    yay -S glide-browser-bin
+    ```
+  </Tab>
+  <Tab title="Binary Download">
+    Download the appropriate archive for your architecture:
+
+    **x86_64**
+    ```bash
+    curl -LO https://github.com/glide-browser/glide/releases/download/0.1.59a/glide.linux-x86_64.tar.xz
+    tar -xf glide.linux-x86_64.tar.xz
+    ```
+
+    **ARM64 (aarch64)**
+    ```bash
+    curl -LO https://github.com/glide-browser/glide/releases/download/0.1.59a/glide.linux-aarch64.tar.xz
+    tar -xf glide.linux-aarch64.tar.xz
+    ```
+
+    Move the extracted binary to your preferred location, such as `/usr/local/bin`.
+  </Tab>
+</Tabs>
+
+## Windows Installation
+
+<Warning>
+  Windows support is experimental. The binaries are not signed yet, so Windows will warn you that you're installing an app from an "unknown publisher". You'll need to click through these warnings to install Glide.
+</Warning>
+
+Download and run the installer for your architecture:
+
+**x86_64**
+```powershell
+Invoke-WebRequest -Uri https://github.com/glide-browser/glide/releases/download/0.1.59a/glide.windows-x86_64.installer.exe -OutFile glide-installer.exe
+.\glide-installer.exe
+```
+
+**ARM64**
+```powershell
+Invoke-WebRequest -Uri https://github.com/glide-browser/glide/releases/download/0.1.59a/glide.windows-aarch64.installer.exe -OutFile glide-installer.exe
+.\glide-installer.exe
+```
+
+## Building from Source
+
+If you want to build Glide from source, you'll need:
+
+<Steps>
+  <Step title="Install Prerequisites">
+    - [Node.js](https://nodejs.org/en/blog/release/v24.0.0) v24
+    - [pnpm](https://pnpm.io/installation)
+    - Firefox build dependencies for your platform (see system requirements above)
+  </Step>
+
+  <Step title="Clone the Repository">
+    ```bash
+    git clone https://github.com/glide-browser/glide
+    cd glide
+    ```
+  </Step>
+
+  <Step title="Bootstrap the Project">
+    ```bash
+    pnpm install
+    pnpm bootstrap
+    pnpm bootstrap:mach
+    ```
+
+    <Info>
+      `pnpm bootstrap` downloads Firefox source code to the `engine/` directory, bundles dependencies, builds docs, and applies patches. `pnpm bootstrap:mach` downloads missing system dependencies and configures Firefox's internal `mach` tool.
+    </Info>
+  </Step>
+
+  <Step title="Build Glide">
+    ```bash
+    pnpm build
+    ```
+
+    <Warning>
+      This can take quite a long time. A fresh build takes approximately 30 minutes on an M4 Max.
+    </Warning>
+  </Step>
+
+  <Step title="Launch Glide">
+    ```bash
+    pnpm launch
+    ```
+
+    <Tip>
+      Run `pnpm launch --help` to see available launch arguments.
+    </Tip>
+  </Step>
+</Steps>
+
+### Development Workflow
+
+When developing Glide, always run the file watcher in a terminal:
+
+```bash
+pnpm dev
+```
+
+This handles:
+- Compiling TypeScript files to JavaScript
+- Rebuilding documentation
+- Copying source files to the Firefox `engine/` directory
+
+<Note>
+  With the watcher running, you rarely need to explicitly rebuild. Most changes are applied automatically.
+</Note>
+
+## Verify Installation
+
+After installation, launch Glide Browser. You should see the Glide start page. Try these commands to verify everything is working:
+
+1. Press `:` to open the commandline
+2. Type `:whichkey` and press Enter to see available keymaps
+3. Press `f` to enter hint mode
+
+## Next Steps
+
+<Card title="Quickstart Guide" icon="rocket" href="/quickstart">
+  Learn the essential Glide Browser workflows
+</Card>

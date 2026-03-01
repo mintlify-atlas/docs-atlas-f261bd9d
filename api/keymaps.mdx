@@ -1,0 +1,346 @@
+---
+title: glide.keymaps
+description: Create, delete, and list key mappings across different modes
+---
+
+The `glide.keymaps` API allows you to create custom key mappings that execute commands or functions when pressed.
+
+## Methods
+
+### set()
+
+Create a key mapping for one or more modes.
+
+```typescript
+glide.keymaps.set<const LHS>(
+  modes: GlideMode | GlideMode[],
+  lhs: string,
+  rhs: string | Function,
+  opts?: KeymapOpts
+): void
+```
+
+#### Parameters
+
+<ParamField path="modes" type="GlideMode | GlideMode[]" required>
+  The mode(s) in which the mapping applies. Can be a single mode or an array of modes.
+  
+  Available modes: `"normal"`, `"insert"`, `"visual"`, `"ignore"`, `"command"`, `"op-pending"`
+</ParamField>
+
+<ParamField path="lhs" type="string" required>
+  The key sequence to map. Supports special key notation like `<C-a>`, `<leader>`, `<Space>`, etc.
+</ParamField>
+
+<ParamField path="rhs" type="string | Function" required>
+  What the key sequence should execute:
+  - A string for excmds: `"tab_close"`, `"mode_change normal"`
+  - A callback function: `({ tab_id }) => { ... }`
+  - A content function: `glide.content.fn(() => { ... })`
+</ParamField>
+
+<ParamField path="opts" type="KeymapOpts">
+  Optional configuration:
+  - `description` - Description shown in which-key
+  - `buffer` - Apply mapping only to current buffer
+  - `retain_key_display` - Keep key sequence displayed after execution
+</ParamField>
+
+#### Examples
+
+**Simple excmd mapping:**
+```typescript
+glide.keymaps.set('normal', 'gt', 'tab_next');
+glide.keymaps.set('normal', 'gT', 'tab_prev');
+```
+
+**Multiple modes:**
+```typescript
+glide.keymaps.set(['normal', 'visual'], '<C-c>', 'yank');
+```
+
+**Callback function:**
+```typescript
+glide.keymaps.set('normal', '<leader>p', ({ tab_id }) => {
+  console.log('Tab ID:', tab_id);
+});
+```
+
+**Content function:**
+```typescript
+glide.keymaps.set('normal', '<leader>f', glide.content.fn(() => {
+  document.body.focus();
+}));
+```
+
+**With description:**
+```typescript
+glide.keymaps.set('normal', '<leader>w', 'window_close', {
+  description: 'Close current window'
+});
+```
+
+**Implementation:**
+```typescript:browser-api.mts:303-306
+keymaps: {
+  set(modes, lhs, rhs, opts) {
+    GlideBrowser.key_manager.set(modes, lhs as string, rhs, opts);
+  },
+}
+```
+
+---
+
+### del()
+
+Remove a key mapping for one or more modes.
+
+```typescript
+glide.keymaps.del<const LHS>(
+  modes: GlideMode | GlideMode[],
+  lhs: string,
+  opts?: KeymapDeleteOpts
+): void
+```
+
+#### Parameters
+
+<ParamField path="modes" type="GlideMode | GlideMode[]" required>
+  The mode(s) from which to remove the mapping.
+</ParamField>
+
+<ParamField path="lhs" type="string" required>
+  The key sequence to unmap.
+</ParamField>
+
+<ParamField path="opts" type="KeymapDeleteOpts">
+  Optional configuration:
+  - `buffer` - Remove only buffer-local mapping
+</ParamField>
+
+#### Examples
+
+**Remove a mapping:**
+```typescript
+glide.keymaps.del('normal', 'gt');
+```
+
+**Remove from multiple modes:**
+```typescript
+glide.keymaps.del(['normal', 'visual'], '<C-c>');
+```
+
+**Remove buffer-local mapping:**
+```typescript
+glide.keymaps.del('normal', '<leader>x', { buffer: true });
+```
+
+**Implementation:**
+```typescript:browser-api.mts:307-309
+del(modes, lhs, opts) {
+  GlideBrowser.key_manager.del(modes, lhs as string, opts);
+},
+```
+
+---
+
+### list()
+
+List all global key mappings.
+
+```typescript
+glide.keymaps.list(modes?: GlideMode | GlideMode[]): glide.Keymap[]
+```
+
+#### Parameters
+
+<ParamField path="modes" type="GlideMode | GlideMode[]">
+  Optional filter to only list mappings for specific mode(s).
+</ParamField>
+
+#### Returns
+
+```typescript
+type Keymap = {
+  sequence: string[];      // e.g. ["g", "t"]
+  lhs: string;            // e.g. "gt"
+  rhs: string | Function; // The mapped command/function
+  description: string | undefined;
+  mode: GlideMode;        // e.g. "normal"
+}
+```
+
+If a key mapping is defined for multiple modes, multiple entries will be returned (one for each mode).
+
+#### Examples
+
+**List all mappings:**
+```typescript
+const mappings = glide.keymaps.list();
+mappings.forEach(map => {
+  console.log(`${map.mode}: ${map.lhs} -> ${map.rhs}`);
+});
+```
+
+**List mappings for specific mode:**
+```typescript
+const normalMaps = glide.keymaps.list('normal');
+const insertMaps = glide.keymaps.list('insert');
+```
+
+**List mappings for multiple modes:**
+```typescript
+const maps = glide.keymaps.list(['normal', 'visual']);
+```
+
+**Implementation:**
+```typescript:browser-api.mts:310-312
+list(modes) {
+  return GlideBrowser.key_manager.list(modes);
+},
+```
+
+---
+
+## Buffer-Local Keymaps
+
+The `glide.buf.keymaps` API provides the same interface but creates buffer-local mappings that are automatically cleaned up when navigating away.
+
+### glide.buf.keymaps.set()
+
+```typescript
+glide.buf.keymaps.set(
+  modes: GlideMode | GlideMode[],
+  lhs: string,
+  rhs: string | Function,
+  opts?: Omit<KeymapOpts, 'buffer'>
+): void
+```
+
+**Example:**
+```typescript
+glide.autocmds.create('UrlEnter', { hostname: 'github.com' }, () => {
+  glide.buf.keymaps.set('normal', '<leader>i', () => {
+    console.log('GitHub-specific mapping');
+  });
+});
+```
+
+**Implementation:**
+```typescript:browser-api.mts:419-422
+keymaps: {
+  set(modes, lhs, rhs, opts) {
+    GlideBrowser.key_manager.set(modes, lhs as string, rhs, { ...opts, buffer: true });
+  },
+}
+```
+
+---
+
+### glide.buf.keymaps.del()
+
+```typescript
+glide.buf.keymaps.del(
+  modes: GlideMode | GlideMode[],
+  lhs: string,
+  opts?: Omit<KeymapDeleteOpts, 'buffer'>
+): void
+```
+
+**Example:**
+```typescript
+glide.buf.keymaps.del('normal', '<leader>i');
+```
+
+**Implementation:**
+```typescript:browser-api.mts:423-425
+del(modes, lhs, opts) {
+  GlideBrowser.key_manager.del(modes, lhs as string, { ...opts, buffer: true });
+},
+```
+
+---
+
+## Key Notation
+
+Glide uses Vim-style key notation:
+
+### Special Keys
+
+- `<Space>` - Space bar
+- `<Tab>` - Tab key
+- `<CR>` or `<Enter>` - Enter/Return
+- `<Esc>` or `<Escape>` - Escape
+- `<BS>` or `<Backspace>` - Backspace
+- `<leader>` - Leader key (default: `<Space>`)
+- `<Up>`, `<Down>`, `<Left>`, `<Right>` - Arrow keys
+- `<Home>`, `<End>`, `<PageUp>`, `<PageDown>`
+- `<F1>` through `<F12>` - Function keys
+- `<lt>` - Literal `<` character
+- `<bar>` - Literal `|` character
+- `<bslash>` - Literal `\` character
+
+### Modifiers
+
+- `<C-x>` - Control + x
+- `<A-x>` - Alt + x
+- `<S-x>` - Shift + x
+- `<D-x>` - Command/Super + x (macOS)
+- `<M-x>` - Meta + x (same as Alt)
+
+### Combinations
+
+```typescript
+// Control + Alt + x
+glide.keymaps.set('normal', '<C-A-x>', 'some_command');
+
+// Leader followed by w
+glide.keymaps.set('normal', '<leader>w', 'window_close');
+
+// Two-key sequence
+glide.keymaps.set('normal', 'gt', 'tab_next');
+```
+
+---
+
+## Complete Example
+
+```typescript
+// Basic navigation
+glide.keymaps.set('normal', 'H', 'history_back');
+glide.keymaps.set('normal', 'L', 'history_forward');
+
+// Tab management
+glide.keymaps.set('normal', '<leader>tn', 'tab_new', {
+  description: 'New tab'
+});
+glide.keymaps.set('normal', '<leader>tc', 'tab_close', {
+  description: 'Close tab'
+});
+
+// Custom function
+glide.keymaps.set('normal', '<leader>d', ({ tab_id }) => {
+  console.log('Current tab:', tab_id);
+  glide.excmds.execute('tab_duplicate');
+});
+
+// Content-specific mapping
+glide.keymaps.set('normal', '<leader>s', glide.content.fn(() => {
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}));
+
+// Buffer-local mapping for GitHub
+glide.autocmds.create('UrlEnter', { hostname: 'github.com' }, () => {
+  glide.buf.keymaps.set('normal', 'gp', () => {
+    const url = new URL(glide.ctx.url);
+    const parts = url.pathname.split('/').filter(Boolean);
+    if (parts.length >= 2) {
+      console.log(`Repo: ${parts[0]}/${parts[1]}`);
+    }
+  });
+});
+
+// List all normal mode mappings
+const mappings = glide.keymaps.list('normal');
+console.log('Normal mode mappings:', mappings.length);
+```

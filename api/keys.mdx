@@ -1,0 +1,447 @@
+---
+title: 'glide.keys'
+description: 'API for simulating and capturing keyboard events'
+---
+
+## Overview
+
+The `glide.keys` API provides methods for sending keyboard events, capturing key presses, and parsing key notation. This is useful for automating interactions, creating interactive prompts, and building custom key-based workflows.
+
+## Methods
+
+### send()
+
+Send a key sequence to the browser, simulating physical key presses.
+
+<CodeGroup>
+```typescript Signature
+glide.keys.send<const Keys>(
+  keyseq: string | { glide_key: string },
+  opts?: glide.KeySendOptions
+): Promise<void>
+```
+
+```typescript Example: Basic Keys
+// Send a simple key sequence
+await glide.keys.send('hello');
+
+// Send special keys
+await glide.keys.send('<Space>');
+await glide.keys.send('<Enter>');
+await glide.keys.send('<Esc>');
+await glide.keys.send('<Tab>');
+
+// Send arrow keys
+await glide.keys.send('<Left>');
+await glide.keys.send('<Right>');
+await glide.keys.send('<Up>');
+await glide.keys.send('<Down>');
+```
+
+```typescript Example: Modifiers
+// Send keys with modifiers
+await glide.keys.send('<C-a>');      // Ctrl+A
+await glide.keys.send('<C-c>');      // Ctrl+C
+await glide.keys.send('<S-Tab>');    // Shift+Tab
+await glide.keys.send('<A-f>');      // Alt+F
+await glide.keys.send('<D-q>');      // Cmd/Super+Q
+
+// Multiple modifiers
+await glide.keys.send('<C-S-t>');    // Ctrl+Shift+T
+await glide.keys.send('<C-S-Left>'); // Ctrl+Shift+Left
+```
+
+```typescript Example: Sequences
+// Send multiple keys in sequence
+await glide.keys.send('<C-a><C-c>'); // Ctrl+A then Ctrl+C
+await glide.keys.send('gg');          // Two 'g' keys
+await glide.keys.send('gt');          // 'g' then 't'
+```
+
+```typescript Example: Skip Mappings
+// Send keys without triggering Glide mappings
+await glide.keys.send('j', { skip_mappings: true });
+// The 'j' key will be sent to Firefox directly,
+// not processed by Glide keymaps
+```
+
+```typescript Example: In Input Fields
+glide.keymaps.set('insert', '~', async () => {
+  // Delete last character in input
+  await glide.keys.send('<BS>');
+});
+```
+</CodeGroup>
+
+<ParamField path="keyseq" type="string | { glide_key: string }" required>
+  The key sequence to send. Can include:
+  - Regular characters: `a`, `b`, `c`, `1`, `2`, `!`, `@`, etc.
+  - Special keys: `<Space>`, `<Enter>`, `<Tab>`, `<Esc>`, `<BS>`, etc.
+  - Arrow keys: `<Left>`, `<Right>`, `<Up>`, `<Down>`
+  - Function keys: `<F1>`, `<F2>`, ..., `<F12>`
+  - Modifiers: `<C-...>` (Ctrl), `<S-...>` (Shift), `<A-...>` (Alt), `<D-...>` (Cmd/Super)
+  - Leader key: `<leader>` (expands to `glide.g.mapleader`, default `<Space>`)
+</ParamField>
+
+<ParamField path="opts.skip_mappings" type="boolean">
+  If `true`, send the key events directly to Firefox's input handler, bypassing all Glide keymaps. Default: `false`
+</ParamField>
+
+<ResponseField name="return" type="Promise<void>">
+  A promise that resolves when all key events have been sent.
+</ResponseField>
+
+<Info>
+  Key notation is case-insensitive for special keys: `<space>`, `<Space>`, and `<SPACE>` are all equivalent.
+</Info>
+
+---
+
+### next()
+
+Returns a Promise that resolves to a KeyEvent when the next key is pressed.
+
+<CodeGroup>
+```typescript Signature
+glide.keys.next(): Promise<glide.KeyEvent>
+```
+
+```typescript Example: Basic Usage
+glide.keymaps.set('normal', '<leader>k', async () => {
+  console.log('Press any key...');
+  const key = await glide.keys.next();
+  console.log('You pressed:', key.glide_key);
+  console.log('Key:', key.key);
+  console.log('Ctrl held?', key.ctrlKey);
+});
+```
+
+```typescript Example: Interactive Prompt
+glide.keymaps.set('normal', '<leader>c', async () => {
+  console.log('Choose option: (a)dd, (d)elete, (q)uit');
+  const key = await glide.keys.next();
+  
+  switch (key.key) {
+    case 'a':
+      console.log('Adding...');
+      break;
+    case 'd':
+      console.log('Deleting...');
+      break;
+    case 'q':
+      console.log('Quitting...');
+      break;
+    default:
+      console.log('Invalid option');
+  }
+});
+```
+
+```typescript Example: Conditional Logic
+glide.keymaps.set('normal', 'g', async () => {
+  const nextKey = await glide.keys.next();
+  
+  if (nextKey.key === 't') {
+    // Go to next tab
+    await glide.excmds.execute('tabnext');
+  } else if (nextKey.key === 'T') {
+    // Go to previous tab
+    await glide.excmds.execute('tabprevious');
+  }
+});
+```
+</CodeGroup>
+
+<ResponseField name="return" type="Promise<glide.KeyEvent>">
+  A promise that resolves to a KeyEvent object containing:
+  - `key`: The character representation of the key
+  - `glide_key`: The vim notation of the key (e.g., `<C-s>`)
+  - `ctrlKey`, `shiftKey`, `altKey`, `metaKey`: Modifier states
+  - All standard KeyboardEvent properties
+</ResponseField>
+
+<Warning>
+  - Only **one** `Promise` can be registered at a time. Calling `next()` while another is pending will throw an error.
+  - This **prevents** the key from being processed further and does **not** invoke any associated mappings.
+  - Modifier keys alone (Ctrl, Shift, Alt) will not resolve the promise - another key must be pressed.
+</Warning>
+
+---
+
+### next_str()
+
+Returns a Promise that resolves to a string representation of the next key pressed.
+
+<CodeGroup>
+```typescript Signature
+glide.keys.next_str(): Promise<string>
+```
+
+```typescript Example
+glide.keymaps.set('normal', '<leader>k', async () => {
+  console.log('Press any key...');
+  const key = await glide.keys.next_str();
+  console.log('Key pressed:', key);
+  // Outputs: 'd', '<C-l>', '<Esc>', etc.
+});
+```
+</CodeGroup>
+
+<ResponseField name="return" type="Promise<string>">
+  A promise that resolves to the Glide key notation string (e.g., `d`, `<C-l>`, `<Space>`).
+</ResponseField>
+
+This is a convenience wrapper around `next()` that returns only the `glide_key` string.
+
+---
+
+### next_passthrough()
+
+Capture the next key press **without** preventing its default behavior.
+
+<CodeGroup>
+```typescript Signature
+glide.keys.next_passthrough(): Promise<glide.KeyEvent>
+```
+
+```typescript Example: Logging Keys
+glide.keymaps.set('normal', '<leader>m', async () => {
+  console.log('Monitoring next key...');
+  const key = await glide.keys.next_passthrough();
+  console.log('Key pressed:', key.glide_key);
+  console.log('(mapping was still executed)');
+});
+```
+
+```typescript Example: Debugging
+// Monitor 'j' without blocking scrolling
+glide.keymaps.set('normal', '<leader>d', async () => {
+  const key = await glide.keys.next_passthrough();
+  console.log('Intercepted:', key.glide_key);
+  // The key still triggers its normal mapping
+});
+```
+</CodeGroup>
+
+<ResponseField name="return" type="Promise<glide.KeyEvent>">
+  A promise that resolves to a KeyEvent object. Unlike `next()`, the key event continues to be processed normally.
+</ResponseField>
+
+<Info>
+  Use `next_passthrough()` when you want to inspect key presses without interfering with their normal behavior. This is useful for debugging or monitoring.
+</Info>
+
+---
+
+### parse()
+
+Parse a single key notation string into a structured object.
+
+<CodeGroup>
+```typescript Signature
+glide.keys.parse(key_notation: string): glide.KeyNotation
+```
+
+```typescript Example
+const parsed = glide.keys.parse('<C-S-a>');
+console.log(parsed);
+// Output:
+// {
+//   key: 'A',
+//   ctrl: true,
+//   shift: true,
+//   alt: false,
+//   meta: false
+// }
+
+glide.keys.parse('<Space>');  // { key: '<Space>', ... }
+glide.keys.parse('h');         // { key: 'h', ... }
+glide.keys.parse('<S-h>');     // { key: 'h', shift: true }
+glide.keys.parse('<M-a>');     // { key: 'a', meta: true }
+```
+</CodeGroup>
+
+<ParamField path="key_notation" type="string" required>
+  A single key in Glide notation (e.g., `<C-a>`, `j`, `<Space>`).
+</ParamField>
+
+<ResponseField name="return" type="glide.KeyNotation">
+  An object containing:
+  - `key`: The key character or special key name
+  - `alt`: Whether Alt/Option is pressed
+  - `ctrl`: Whether Ctrl is pressed
+  - `meta`: Whether Cmd/Super is pressed
+  - `shift`: Whether Shift is pressed
+</ResponseField>
+
+<Note>
+  Special keys are normalized to be consistent. Shifted keys are **not** special-cased - the returned key is whatever was given in the input.
+  
+  Examples:
+  - `<Space>` → `{ key: "<Space>" }`
+  - `H` → `{ key: "H" }`
+  - `<S-h>` → `{ key: "h", shift: true }`
+  - `<S-H>` → `{ key: "H", shift: true }`
+</Note>
+
+## Complete Examples
+
+### Custom Confirmation Prompt
+
+```typescript glide.ts
+async function confirm(message: string): Promise<boolean> {
+  console.log(`${message} (y/n)`);
+  const key = await glide.keys.next();
+  return key.key === 'y';
+}
+
+glide.keymaps.set('normal', '<leader>q', async () => {
+  if (await confirm('Close all tabs?')) {
+    const tabs = await glide.tabs.query({});
+    await browser.tabs.remove(tabs.map(t => t.id!));
+  }
+});
+```
+
+### Multi-Key Command
+
+```typescript glide.ts
+glide.keymaps.set('normal', '<leader>w', async () => {
+  console.log('Window command - press h/j/k/l for direction');
+  const key = await glide.keys.next();
+  
+  const directions: Record<string, string> = {
+    h: 'left',
+    j: 'down',
+    k: 'up',
+    l: 'right'
+  };
+  
+  const direction = directions[key.key];
+  if (direction) {
+    console.log(`Splitting window ${direction}`);
+    // Implement window splitting logic
+  }
+});
+```
+
+### Auto-Type Sequence
+
+```typescript glide.ts
+glide.keymaps.set('normal', '<leader>at', async () => {
+  // Focus an input field first
+  // Then type a sequence
+  await glide.keys.send('username@example.com');
+  await glide.keys.send('<Tab>');
+  await glide.keys.send('password123');
+  await glide.keys.send('<Enter>');
+});
+```
+
+### Capture and Replay
+
+```typescript glide.ts
+let recording: string[] = [];
+let isRecording = false;
+
+glide.keymaps.set('normal', '<leader>rr', () => {
+  isRecording = !isRecording;
+  if (isRecording) {
+    recording = [];
+    console.log('Recording started...');
+  } else {
+    console.log('Recording stopped.', recording);
+  }
+});
+
+glide.keymaps.set('normal', '<leader>rp', async () => {
+  console.log('Replaying...');
+  for (const key of recording) {
+    await glide.keys.send(key);
+  }
+});
+
+glide.autocmds.create('KeyStateChanged', async ({ sequence }) => {
+  if (isRecording && sequence.length > 0) {
+    recording.push(...sequence);
+  }
+});
+```
+
+## Special Key Reference
+
+<Accordion title="View all supported keys">
+  **Basic Keys**
+  - Letters: `a-z`, `A-Z`
+  - Numbers: `0-9`
+  - Symbols: `!@#$%^&*()-_=+[]{}\|;:'",./<>?`
+  
+  **Special Keys**
+  - `<Space>`, `<Tab>`, `<Enter>`, `<CR>`, `<Return>`
+  - `<Esc>`, `<BS>`, `<Backspace>`, `<Del>`, `<Delete>`
+  - `<Insert>`
+  
+  **Navigation**
+  - `<Up>`, `<Down>`, `<Left>`, `<Right>`
+  - `<Home>`, `<End>`
+  - `<PageUp>`, `<PgUp>`, `<PageDown>`, `<PgDn>`
+  
+  **Function Keys**
+  - `<F1>` through `<F12>`
+  
+  **Modifiers**
+  - `<C-...>`: Ctrl
+  - `<S-...>`: Shift
+  - `<A-...>`: Alt/Option
+  - `<M-...>`: Alt/Option (alias)
+  - `<D-...>`: Cmd/Super
+  
+  **Number Pad**
+  - `<k0>` through `<k9>`
+  - `<kPlus>`, `<kMinus>`, `<kMultiply>`, `<kDivide>`
+  - `<kEnter>`, `<kPoint>`
+  
+  **Media Keys**
+  - `<AudioVolumeUp>`, `<AudioVolumeDown>`, `<AudioVolumeMute>`
+  - `<MediaPlayPause>`, `<MediaStop>`, `<MediaTrackNext>`, `<MediaTrackPrevious>`
+  
+  **Browser Keys**
+  - `<BrowserBack>`, `<BrowserForward>`, `<BrowserRefresh>`
+  - `<BrowserStop>`, `<BrowserSearch>`, `<BrowserFavorites>`, `<BrowserHome>`
+  
+  **Misc**
+  - `<leader>`: Expands to `glide.g.mapleader` (default `<Space>`)
+  - `<lt>`: Literal `<` character
+  - `<Bar>`: Literal `|` character
+  - `<Bslash>`: Literal `\` character
+</Accordion>
+
+## Type Reference
+
+### glide.KeyEvent
+
+```typescript
+type KeyEvent = KeyboardEvent & {
+  glide_key: string; // e.g., '<C-s>', 'j', '<Space>'
+};
+```
+
+### glide.KeyNotation
+
+```typescript
+type KeyNotation = {
+  key: string;
+  alt: boolean;
+  ctrl: boolean;
+  meta: boolean;
+  shift: boolean;
+};
+```
+
+### glide.KeySendOptions
+
+```typescript
+type KeySendOptions = {
+  skip_mappings?: boolean;
+};
+```

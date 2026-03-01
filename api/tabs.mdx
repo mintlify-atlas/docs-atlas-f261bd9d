@@ -1,0 +1,216 @@
+---
+title: 'glide.tabs'
+description: 'API for managing browser tabs'
+---
+
+## Overview
+
+The `glide.tabs` API provides methods for querying, managing, and controlling browser tabs. This includes getting the active tab, finding tabs by properties, and unloading tabs to reduce memory usage.
+
+## Methods
+
+### active()
+
+Returns the active tab for the currently focused window.
+
+<CodeGroup>
+```typescript Signature
+glide.tabs.active(): Promise<glide.TabWithID>
+```
+
+```typescript Example
+const tab = await glide.tabs.active();
+console.log('Current URL:', tab.url);
+console.log('Tab ID:', tab.id);
+```
+</CodeGroup>
+
+<ResponseField name="return" type="Promise<glide.TabWithID>">
+  A promise that resolves to the active tab object with a guaranteed `id` property.
+</ResponseField>
+
+**Note**: This is equivalent to:
+```typescript
+const tab = await browser.tabs.query({ active: true, currentWindow: true })[0];
+```
+But with additional error handling for invalid states.
+
+---
+
+### get_first()
+
+Find the first tab matching the given query filter.
+
+<CodeGroup>
+```typescript Signature
+glide.tabs.get_first(
+  query: Browser.Tabs.QueryQueryInfoType
+): Promise<Browser.Tabs.Tab | undefined>
+```
+
+```typescript Example
+// Find a tab by title
+const tab = await glide.tabs.get_first({ 
+  title: "GitHub" 
+});
+
+if (tab) {
+  console.log('Found tab:', tab.url);
+} else {
+  console.log('No matching tab found');
+}
+
+// Find a tab by URL pattern
+const githubTab = await glide.tabs.get_first({ 
+  url: "*://github.com/*" 
+});
+```
+</CodeGroup>
+
+<ParamField path="query" type="Browser.Tabs.QueryQueryInfoType" required>
+  Query object to filter tabs. Supports properties like:
+  - `title`: Match tab title
+  - `url`: Match tab URL (supports wildcards)
+  - `active`: Whether the tab is active
+  - `currentWindow`: Whether the tab is in the current window
+  - And other standard WebExtension tab query properties
+</ParamField>
+
+<ResponseField name="return" type="Promise<Browser.Tabs.Tab | undefined>">
+  A promise that resolves to the first matching tab, or `undefined` if no tabs match.
+</ResponseField>
+
+---
+
+### query()
+
+Gets all tabs that have the specified properties, or all tabs if no properties are specified.
+
+<CodeGroup>
+```typescript Signature
+glide.tabs.query(
+  query: Browser.Tabs.QueryQueryInfoType
+): Promise<Browser.Tabs.Tab[]>
+```
+
+```typescript Example
+// Get all tabs in the current window
+const tabs = await glide.tabs.query({ 
+  currentWindow: true 
+});
+console.log(`Found ${tabs.length} tabs`);
+
+// Get all pinned tabs
+const pinnedTabs = await glide.tabs.query({ 
+  pinned: true 
+});
+
+// Get all tabs with a specific URL pattern
+const youtubeTabs = await glide.tabs.query({ 
+  url: "*://www.youtube.com/*" 
+});
+```
+</CodeGroup>
+
+<ParamField path="query" type="Browser.Tabs.QueryQueryInfoType" required>
+  Query object to filter tabs. Same properties as `get_first()`.
+</ParamField>
+
+<ResponseField name="return" type="Promise<Browser.Tabs.Tab[]>">
+  A promise that resolves to an array of all matching tabs. Returns an empty array if no tabs match.
+</ResponseField>
+
+---
+
+### unload()
+
+Unload the given tabs to reduce memory usage.
+
+<CodeGroup>
+```typescript Signature
+glide.tabs.unload(
+  ...tabs: Array<number | Browser.Tabs.Tab>
+): Promise<void>
+```
+
+```typescript Example
+// Unload specific tabs by ID
+await glide.tabs.unload(123, 456);
+
+// Unload tabs by tab object
+const tabs = await glide.tabs.query({ 
+  url: "*://example.com/*" 
+});
+await glide.tabs.unload(...tabs);
+
+// Unload all inactive tabs
+const allTabs = await glide.tabs.query({});
+const activeTab = await glide.tabs.active();
+const inactiveTabs = allTabs.filter(tab => tab.id !== activeTab.id);
+await glide.tabs.unload(...inactiveTabs);
+```
+</CodeGroup>
+
+<ParamField path="tabs" type="Array<number | Browser.Tabs.Tab>" required>
+  Variable number of tabs to unload. Can be tab IDs (numbers) or tab objects.
+</ParamField>
+
+<ResponseField name="return" type="Promise<void>">
+  A promise that resolves when all tabs have been unloaded.
+</ResponseField>
+
+<Warning>
+  You **cannot** unload the currently active tab. If you attempt to do so, an error will be thrown:
+  ```
+  Error: active tabs cannot be unloaded
+  ```
+</Warning>
+
+<Info>
+  Unloading tabs is similar to Firefox's "Unload Tab" feature. The tab remains visible in the tab bar but its content is freed from memory. When you click on an unloaded tab, it automatically reloads.
+  
+  [Learn more about unloading tabs](https://support.mozilla.org/kb/unload-tabs-reduce-memory-usage-firefox)
+</Info>
+
+## Complete Example
+
+```typescript glide.ts
+// Create a keymap to manage memory by unloading old tabs
+glide.keymaps.set('normal', '<leader>tu', async () => {
+  const allTabs = await glide.tabs.query({});
+  const activeTab = await glide.tabs.active();
+  
+  // Unload all tabs except the active one
+  const tabsToUnload = allTabs.filter(tab => 
+    tab.id !== activeTab.id && !tab.pinned
+  );
+  
+  if (tabsToUnload.length > 0) {
+    await glide.tabs.unload(...tabsToUnload);
+    console.log(`Unloaded ${tabsToUnload.length} tabs`);
+  }
+});
+
+// Find and switch to a specific tab
+glide.keymaps.set('normal', '<leader>fg', async () => {
+  const githubTab = await glide.tabs.get_first({ 
+    url: "*://github.com/*" 
+  });
+  
+  if (githubTab?.id) {
+    await browser.tabs.update(githubTab.id, { active: true });
+  }
+});
+```
+
+## Type Reference
+
+### glide.TabWithID
+
+A tab object that is guaranteed to have an `id` property:
+
+```typescript
+type TabWithID = Omit<Browser.Tabs.Tab, "id"> & { id: number };
+```
+
+This extends the standard `Browser.Tabs.Tab` but ensures the `id` is always present (not undefined).

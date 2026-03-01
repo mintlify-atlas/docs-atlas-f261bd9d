@@ -1,0 +1,199 @@
+---
+title: glide.addons
+description: Install and manage browser extensions
+---
+
+The `glide.addons` API allows you to programmatically install and manage browser extensions (addons) from your Glide configuration.
+
+## Methods
+
+### glide.addons.install()
+
+Install a browser extension from an XPI URL.
+
+```typescript
+glide.addons.install(xpi_url: string, opts?: AddonInstallOptions): Promise<AddonInstall>
+```
+
+#### Parameters
+
+<ParamField path="xpi_url" type="string" required>
+  URL pointing to an XPI file for the extension you want to install
+</ParamField>
+
+<ParamField path="opts" type="AddonInstallOptions">
+  Optional configuration object
+  
+  <Expandable title="properties">
+    <ParamField path="force" type="boolean" default="false">
+      If `true`, always install the addon even if it's already installed. By default, if the addon is already installed, the cached version is returned.
+    </ParamField>
+    
+    <ParamField path="private_browsing_allowed" type="boolean" default="false">
+      Whether the addon should be enabled in private browsing mode
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+#### Returns
+
+Returns a `Promise<AddonInstall>` object with the following properties:
+
+- `id`: string - Unique addon identifier
+- `name`: string - Display name of the addon
+- `description`: string - Addon description
+- `version`: string - Addon version number
+- `active`: boolean - Whether the addon is currently active
+- `source_uri`: URL | null - Original installation URL
+- `private_browsing_allowed`: boolean - Whether private browsing is enabled
+- `type`: AddonType - Type of addon ("extension", "theme", "locale", etc.)
+- `cached`: boolean - Whether this install was cached (addon was already installed)
+- `uninstall()`: Promise&lt;void&gt; - Uninstall the addon
+- `reload()`: Promise&lt;void&gt; - Reload the addon
+
+#### Examples
+
+**Basic installation**
+
+Install uBlock Origin from addons.mozilla.org:
+
+```typescript
+glide.autocmds.create("ConfigLoaded", async () => {
+  await glide.addons.install(
+    "https://addons.mozilla.org/firefox/downloads/file/4391697/ublock_origin-1.61.2.xpi"
+  );
+});
+```
+
+**Force reinstall**
+
+```typescript
+// Always reinstall, even if already installed
+const addon = await glide.addons.install(
+  "https://example.com/addon.xpi",
+  { force: true }
+);
+```
+
+**Enable in private browsing**
+
+```typescript
+const addon = await glide.addons.install(
+  "https://example.com/addon.xpi",
+  { private_browsing_allowed: true }
+);
+```
+
+**Obtaining XPI URLs**
+
+To get an XPI URL from addons.mozilla.org:
+
+1. Navigate to the extension's page (e.g., https://addons.mozilla.org/firefox/addon/ublock-origin/)
+2. Right-click the "Add to Firefox" button
+3. Select "Copy Link"
+4. Paste the URL into your config
+
+### glide.addons.list()
+
+List all installed addons, optionally filtered by type.
+
+```typescript
+glide.addons.list(types?: AddonType | AddonType[]): Promise<Addon[]>
+```
+
+#### Parameters
+
+<ParamField path="types" type="AddonType | AddonType[]">
+  Optional filter for addon types. Can be a single type or array of types:
+  
+  - `"extension"` - Browser extensions
+  - `"theme"` - Browser themes
+  - `"locale"` - Language packs
+  - `"dictionary"` - Spell-check dictionaries
+  - `"sitepermission"` - Site-specific permissions
+  
+  If omitted, returns all addons.
+</ParamField>
+
+#### Returns
+
+Returns a `Promise<Addon[]>` - array of addon objects. Each addon has the same properties as `AddonInstall` except without the `cached` property.
+
+#### Examples
+
+**List all addons**
+
+```typescript
+const addons = await glide.addons.list();
+console.log(`Installed addons: ${addons.map(a => a.name).join(", ")}`);
+```
+
+**List only extensions**
+
+```typescript
+const extensions = await glide.addons.list("extension");
+```
+
+**List multiple types**
+
+```typescript
+const addons = await glide.addons.list(["extension", "theme"]);
+```
+
+**Check if specific addon is installed**
+
+```typescript
+const addons = await glide.addons.list("extension");
+const hasUblock = addons.some(a => a.name.includes("uBlock Origin"));
+
+if (!hasUblock) {
+  await glide.addons.install("https://...");
+}
+```
+
+## Complete Example
+
+Automatic addon management in your config:
+
+```typescript
+glide.autocmds.create("ConfigLoaded", async () => {
+  // Install required addons
+  const ublock = await glide.addons.install(
+    "https://addons.mozilla.org/firefox/downloads/file/4391697/ublock_origin-1.61.2.xpi",
+    { private_browsing_allowed: true }
+  );
+  
+  console.log(`uBlock Origin installed: ${ublock.name} v${ublock.version}`);
+  console.log(`Was cached: ${ublock.cached}`);
+  
+  // List all extensions
+  const extensions = await glide.addons.list("extension");
+  console.log(`Total extensions: ${extensions.length}`);
+  
+  // Check installation status
+  for (const ext of extensions) {
+    console.log(`- ${ext.name} (${ext.active ? "active" : "inactive"})`);
+  }
+});
+
+// Uninstall on command
+glide.excmds.create(
+  { name: "uninstall-ublock" },
+  async () => {
+    const extensions = await glide.addons.list("extension");
+    const ublock = extensions.find(e => e.id === "uBlock0@raymondhill.net");
+    
+    if (ublock) {
+      await ublock.uninstall();
+      console.log("uBlock Origin uninstalled");
+    }
+  }
+);
+```
+
+## Notes
+
+- Addon installations are cached between config reloads. If an addon is already installed, `glide.addons.install()` returns the existing addon unless `force: true` is specified.
+- Installed addons persist across browser restarts and config reloads.
+- To remove an addon, you must call the `uninstall()` method on the addon object.
+- The `reload()` method is useful for development when you're updating an extension.

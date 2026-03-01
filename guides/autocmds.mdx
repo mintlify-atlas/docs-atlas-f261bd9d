@@ -1,0 +1,451 @@
+---
+title: Event-Driven Automation
+description: Automate browser behavior with Glide autocmds
+---
+
+# Event-Driven Automation
+
+Autocmds (automatic commands) allow you to execute code automatically when specific events occur in Glide. This enables powerful automation and context-aware customization.
+
+## Overview
+
+Autocmds are functions that run automatically in response to browser events like URL changes, mode switches, or window loading.
+
+### Basic Syntax
+
+```typescript
+glide.autocmds.create(event, pattern, callback);
+```
+
+Some events don't require a pattern:
+
+```typescript
+glide.autocmds.create(event, callback);
+```
+
+### Removing Autocmds
+
+```typescript
+glide.autocmds.remove(event, callback);
+```
+
+## Available Events
+
+### UrlEnter
+
+Fired when the focused URL changes, including:
+- Switching tabs
+- Navigating back/forward in history
+- Clicking links or changing the URL
+
+**Pattern**: `RegExp` matching the URL or `{ hostname: string }`
+
+**Arguments**:
+```typescript
+{
+  tab_id: number;
+  url: string;
+}
+```
+
+**Examples**:
+
+```typescript
+// Match by hostname
+glide.autocmds.create("UrlEnter", { hostname: "github.com" }, () => {
+  console.log("Entered GitHub");
+});
+
+// Match by URL pattern
+glide.autocmds.create("UrlEnter", /\/issues/, () => {
+  console.log("Viewing issues page");
+});
+
+// Access event data
+glide.autocmds.create("UrlEnter", /./, ({ tab_id, url }) => {
+  console.log(`Tab ${tab_id} navigated to ${url}`);
+});
+```
+
+#### Cleanup Functions
+
+Return a cleanup function to execute when navigating away:
+
+```typescript
+glide.autocmds.create("UrlEnter", { hostname: "example.com" }, () => {
+  console.log("Entered example.com");
+  
+  glide.buf.keymaps.set("normal", "<leader>x", () => {
+    console.log("Special mapping for example.com");
+  });
+  
+  return () => {
+    console.log("Left example.com");
+    // Keymaps are automatically cleaned up
+  };
+});
+```
+
+### ModeChanged
+
+Fired when the mode changes.
+
+**Pattern**: String matching `old_mode:new_mode` with `*` as wildcard
+
+**Arguments**:
+```typescript
+{
+  readonly old_mode: GlideMode | null;
+  readonly new_mode: GlideMode;
+}
+```
+
+**Examples**:
+
+```typescript
+// Fire on any mode change
+glide.autocmds.create("ModeChanged", "*", ({ old_mode, new_mode }) => {
+  console.log(`Mode changed from ${old_mode} to ${new_mode}`);
+});
+
+// Enter visual mode
+glide.autocmds.create("ModeChanged", "*:visual", () => {
+  console.log("Entered visual mode");
+});
+
+// Leave insert mode
+glide.autocmds.create("ModeChanged", "insert:*", ({ new_mode }) => {
+  console.log(`Left insert mode, now in ${new_mode}`);
+});
+
+// Specific transition
+glide.autocmds.create("ModeChanged", "normal:insert", () => {
+  console.log("Normal → Insert");
+});
+```
+
+### ConfigLoaded
+
+Fired when the config is first loaded and on every reload.
+
+**Pattern**: None
+
+**Arguments**: None
+
+**Example**:
+
+```typescript
+glide.autocmds.create("ConfigLoaded", () => {
+  console.log("Config loaded!");
+  console.log(`Glide version: ${glide.ctx.version}`);
+  console.log(`Firefox version: ${glide.ctx.firefox_version}`);
+});
+```
+
+### WindowLoaded
+
+Fired when Glide first starts. **Not** fired on config reload.
+
+**Pattern**: None
+
+**Arguments**: None
+
+**Example**:
+
+```typescript
+glide.autocmds.create("WindowLoaded", () => {
+  console.log("Glide window initialized");
+  // One-time initialization code
+});
+```
+
+### KeyStateChanged
+
+Fired when the key sequence changes.
+
+**Pattern**: None
+
+**Arguments**:
+```typescript
+{
+  readonly mode: GlideMode;
+  readonly sequence: string[];
+  readonly partial: boolean;
+}
+```
+
+Fires when:
+1. A key matches a mapping
+2. A key is part of a mapping
+3. A key cancels a partial mapping
+4. A partial mapping times out
+
+**Example**:
+
+```typescript
+glide.keymaps.set("normal", "gt", "tab_next");
+
+glide.autocmds.create("KeyStateChanged", ({ sequence, partial }) => {
+  if (partial) {
+    console.log(`Partial sequence: ${sequence.join("")}`); // "g"
+  } else {
+    console.log(`Complete sequence: ${sequence.join("")}`); // "gt" or "g" + other
+  }
+});
+```
+
+### CommandLineExit
+
+Fired when the command line is closed.
+
+**Pattern**: None
+
+**Arguments**: None
+
+**Example**:
+
+```typescript
+glide.autocmds.create("CommandLineExit", () => {
+  console.log("Command line closed");
+});
+```
+
+## Common Patterns
+
+### Site-Specific Keymaps
+
+```typescript
+glide.autocmds.create("UrlEnter", { hostname: "github.com" }, () => {
+  glide.buf.keymaps.set("normal", "<leader>gi", async () => {
+    const url = glide.ctx.url;
+    const parts = url.pathname.split("/").filter(Boolean);
+    assert(parts.length >= 2, "Not a repository page");
+    url.pathname = `/${parts[0]}/${parts[1]}/issues`;
+    await browser.tabs.update({ url: url.toString() });
+  }, { description: "Go to issues" });
+});
+```
+
+### Site-Specific Preferences
+
+```typescript
+glide.prefs.set("privacy.resistFingerprinting", true);
+
+glide.autocmds.create("UrlEnter", { hostname: "bank.com" }, () => {
+  glide.buf.prefs.set("privacy.resistFingerprinting", false);
+});
+```
+
+### Automatic Mode Switching
+
+```typescript
+glide.autocmds.create("UrlEnter", { hostname: "vscode.dev" }, async () => {
+  await glide.excmds.execute("mode_change ignore");
+  return () => glide.excmds.execute("mode_change normal");
+});
+```
+
+### URL-Based Styles
+
+```typescript
+glide.autocmds.create("UrlEnter", { hostname: "reddit.com" }, () => {
+  glide.styles.add(css`
+    .promotedlink { display: none !important; }
+  `, { id: 'reddit-no-ads' });
+  
+  return () => {
+    glide.styles.remove('reddit-no-ads');
+  };
+});
+```
+
+### Extension Installation
+
+```typescript
+glide.autocmds.create("ConfigLoaded", async () => {
+  await glide.addons.install(
+    "https://addons.mozilla.org/firefox/downloads/file/..."
+  );
+});
+```
+
+### Mode-Based UI Updates
+
+```typescript
+glide.autocmds.create("ModeChanged", "*", ({ new_mode }) => {
+  const color = {
+    normal: "#4CAF50",
+    insert: "#2196F3",
+    visual: "#FF9800",
+    hint: "#9C27B0",
+  }[new_mode] ?? "#757575";
+  
+  glide.styles.add(css`
+    #nav-bar {
+      border-bottom: 3px solid ${color} !important;
+    }
+  `, { id: 'mode-indicator', overwrite: true });
+});
+```
+
+### Key Sequence Display
+
+```typescript
+declare global {
+  interface GlideGlobals {
+    key_display?: HTMLDivElement;
+  }
+}
+
+glide.autocmds.create("WindowLoaded", () => {
+  const display = document.createElement("div");
+  display.style.cssText = `
+    position: fixed;
+    bottom: 10px;
+    right: 10px;
+    background: rgba(0,0,0,0.8);
+    color: white;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-family: monospace;
+  `;
+  document.body.appendChild(display);
+  glide.g.key_display = display;
+});
+
+glide.autocmds.create("KeyStateChanged", ({ sequence, partial }) => {
+  if (glide.g.key_display) {
+    glide.g.key_display.textContent = partial ? sequence.join("") : "";
+  }
+});
+```
+
+## Advanced Techniques
+
+### One-Time Autocmds
+
+```typescript
+glide.autocmds.create("UrlEnter", /example/, function autocmd() {
+  console.log("First visit to example");
+  glide.autocmds.remove("UrlEnter", autocmd);
+});
+```
+
+### Conditional Autocmds
+
+```typescript
+glide.autocmds.create("UrlEnter", /./, ({ url }) => {
+  const hostname = new URL(url).hostname;
+  
+  if (hostname.endsWith(".dev")) {
+    glide.buf.keymaps.set("normal", "<leader>r", async () => {
+      const tab = await glide.tabs.active();
+      await browser.tabs.reload(tab.id);
+    });
+  }
+});
+```
+
+### Multiple Autocmds
+
+All matching autocmds fire in registration order:
+
+```typescript
+glide.autocmds.create("UrlEnter", /github/, () => {
+  console.log("First autocmd");
+});
+
+glide.autocmds.create("UrlEnter", /github/, () => {
+  console.log("Second autocmd");
+});
+// Both fire when visiting GitHub
+```
+
+### Error Handling
+
+```typescript
+glide.autocmds.create("UrlEnter", { hostname: "example.com" }, () => {
+  try {
+    // Your code here
+    throw new Error("Something went wrong");
+  } catch (err) {
+    console.error("Autocmd error:", err);
+    // Error notification is shown automatically
+  }
+});
+```
+
+## State Management
+
+Track state across autocmd executions:
+
+```typescript
+declare global {
+  interface GlideGlobals {
+    visit_count?: Map<string, number>;
+  }
+}
+
+glide.g.visit_count = new Map();
+
+glide.autocmds.create("UrlEnter", /./, ({ url }) => {
+  const hostname = new URL(url).hostname;
+  const count = (glide.g.visit_count!.get(hostname) ?? 0) + 1;
+  glide.g.visit_count!.set(hostname, count);
+  
+  console.log(`Visited ${hostname} ${count} times`);
+});
+```
+
+## Debugging
+
+### Logging Events
+
+```typescript
+glide.autocmds.create("UrlEnter", /./, ({ tab_id, url }) => {
+  console.log(`[UrlEnter] tab=${tab_id} url=${url}`);
+});
+
+glide.autocmds.create("ModeChanged", "*", ({ old_mode, new_mode }) => {
+  console.log(`[ModeChanged] ${old_mode} → ${new_mode}`);
+});
+```
+
+### Checking Autocmd Status
+
+You can verify autocmds are registered by triggering them:
+
+```typescript
+declare global {
+  interface GlideGlobals {
+    autocmd_fired?: boolean;
+  }
+}
+
+glide.autocmds.create("ConfigLoaded", () => {
+  glide.g.autocmd_fired = true;
+});
+
+// Check after reload
+console.log(glide.g.autocmd_fired); // true
+```
+
+## Performance Tips
+
+<Tip>
+Avoid heavy computations in frequently-fired autocmds like `KeyStateChanged`. Use debouncing or throttling if needed.
+</Tip>
+
+<Tip>
+Cleanup functions are important for buffer-specific keymaps and styles. Always return a cleanup function when modifying buffer state.
+</Tip>
+
+<Warning>
+Autocmds fire on config reload. Avoid side effects in `ConfigLoaded` that shouldn't be repeated.
+</Warning>
+
+## See Also
+
+- [Customization](/guides/customization) - Styles and options
+- [Advanced Config](/guides/advanced-config) - Config organization
+- [API Reference](/api/autocmds) - Complete autocmd API

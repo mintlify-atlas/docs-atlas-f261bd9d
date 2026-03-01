@@ -1,0 +1,391 @@
+---
+title: Options
+description: Configure Glide with glide.o (global) and glide.bo (buffer-local) options
+---
+
+Glide provides two ways to set options: `glide.o` for global options and `glide.bo` for buffer-specific options.
+
+## glide.o
+
+Set browser-wide options that persist across all tabs.
+
+```typescript
+glide.o.hint_size = "14px";
+glide.o.native_tabs = "hide";
+glide.o.mapping_timeout = 500;
+```
+
+## glide.bo
+
+Set buffer-specific options that only apply to the current tab. These options are reset when navigating to a new page.
+
+```typescript
+glide.bo.hint_size = "20px";  // Only affects current buffer
+glide.bo.native_tabs = "show"; // Only affects current buffer
+```
+
+**Implementation:**
+```typescript:browser-api.mts:198-216
+export function make_buffer_options(): typeof glide["bo"] {
+  const bo = {} as typeof glide["bo"];
+
+  for (const name of GLIDE_O_SETTERS) {
+    let value = undefined as any;
+    Object.defineProperty(bo, name, {
+      get() {
+        return value;
+      },
+      set(v) {
+        value = v;
+        options[name]?.(v, true);
+      },
+    });
+  }
+
+  return bo;
+}
+```
+
+## glide.options.get()
+
+Retrieve the effective option value, checking buffer-specific options first, then falling back to global options.
+
+```typescript
+glide.options.get<Name extends keyof glide.Options>(name: Name): glide.Options[Name]
+```
+
+**Example:**
+```typescript
+glide.o.hint_size = "11px";
+glide.bo.hint_size = "16px";
+
+const size = glide.options.get('hint_size');
+console.log(size); // "16px" (buffer-specific value takes precedence)
+```
+
+**Implementation:**
+```typescript:browser-api.mts:225-234
+options: {
+  get<Name extends keyof glide.Options>(name: Name): glide.Options[Name] {
+    const option = GlideBrowser.api.bo[name];
+    if (is_present(option)) {
+      return option!;
+    }
+
+    return GlideBrowser.api.o[name];
+  },
+}
+```
+
+---
+
+## Available Options
+
+### mapping_timeout
+
+<ParamField path="mapping_timeout" type="number" default="200">
+  How long to wait (in milliseconds) until cancelling a partial keymapping execution.
+  
+  For example, with `glide.keymaps.set('insert', 'jj', 'mode_change normal')`, after pressing `j` once, this option determines how long the delay should be until the `j` key is considered fully pressed and the mapping sequence is reset.
+  
+  **Note:** This only applies in insert mode.
+</ParamField>
+
+```typescript
+glide.o.mapping_timeout = 500;
+```
+
+---
+
+### switch_mode_on_focus
+
+<ParamField path="switch_mode_on_focus" type="boolean" default="true">
+  Determines if the current mode will change when certain element types are focused.
+  
+  For example, if `true`, Glide will automatically switch to `insert` mode when an editable element is focused.
+  
+  This can be useful for staying in the same mode while switching tabs.
+</ParamField>
+
+```typescript
+glide.o.switch_mode_on_focus = false;
+```
+
+---
+
+### yank_highlight
+
+<ParamField path="yank_highlight" type="string" default="#edc73b">
+  Color used to briefly highlight text when it's yanked. Accepts any valid CSS color value.
+</ParamField>
+
+```typescript
+glide.o.yank_highlight = "#ff6b35";        // Orange
+glide.o.yank_highlight = "rgb(255, 0, 0)"; // Red
+```
+
+---
+
+### yank_highlight_time
+
+<ParamField path="yank_highlight_time" type="number" default="150">
+  How long (in milliseconds) to highlight the selection when it's yanked.
+</ParamField>
+
+```typescript
+glide.o.yank_highlight_time = 300;
+```
+
+---
+
+### jumplist_max_entries
+
+<ParamField path="jumplist_max_entries" type="number" default="100">
+  The maximum number of entries to include in the jumplist, i.e., how far back in history the jumplist will store.
+</ParamField>
+
+```typescript
+glide.o.jumplist_max_entries = 200;
+```
+
+---
+
+### which_key_delay
+
+<ParamField path="which_key_delay" type="number" default="300">
+  The delay (in milliseconds) before showing the which-key UI.
+</ParamField>
+
+```typescript
+glide.o.which_key_delay = 500;
+```
+
+---
+
+### hint_chars
+
+<ParamField path="hint_chars" type="string" default="hjklasdfgyuiopqwertnmzxcvb">
+  The characters to include in hint labels.
+</ParamField>
+
+```typescript
+glide.o.hint_chars = "asdfghjkl";
+```
+
+---
+
+### hint_size
+
+<ParamField path="hint_size" type="string" default="11px">
+  The font size of hint labels. Directly corresponds to the CSS `font-size` property.
+</ParamField>
+
+```typescript
+glide.o.hint_size = "14px";
+```
+
+**Implementation:**
+```typescript:browser-api.mts:137-144
+#hint_size = "11px";
+get hint_size() {
+  return this.#hint_size;
+}
+set hint_size(value: string) {
+  this.#hint_size = value;
+  options.hint_size(value, false);
+}
+```
+
+---
+
+### hint_label_generator
+
+<ParamField path="hint_label_generator" type="function">
+  A function to produce labels for hints. Can use built-in generators:
+  - `glide.hints.label_generators.prefix_free` (default)
+  - `glide.hints.label_generators.numeric`
+</ParamField>
+
+```typescript
+glide.o.hint_label_generator = glide.hints.label_generators.numeric;
+
+// Or create custom generator
+glide.o.hint_label_generator = ({ hints }) => {
+  return hints.map((_, i) => String(i + 1));
+};
+```
+
+---
+
+### native_tabs
+
+<ParamField path="native_tabs" type="'show' | 'hide' | 'autohide'" default="show">
+  Configure the behavior of the native tab bar:
+  - `show` - Always visible
+  - `hide` - Always hidden
+  - `autohide` - Shows when cursor hovers over its default position
+  
+  Works for both horizontal and vertical tabs.
+  
+  **Warning:** `autohide` does not work on macOS at the moment.
+</ParamField>
+
+```typescript
+glide.o.native_tabs = "hide";
+
+// For vertical tabs, adjust collapsed width:
+glide.o.native_tabs = "autohide";
+glide.styles.add(css`
+  :root {
+    --uc-tab-collapsed-width: 2px;
+  }
+`);
+```
+
+**Implementation:**
+```typescript:browser-api.mts:154-161
+#native_tabs: (typeof glide)["o"]["native_tabs"] = "show";
+get native_tabs() {
+  return this.#native_tabs;
+}
+set native_tabs(value: (typeof glide)["o"]["native_tabs"]) {
+  this.#native_tabs = value;
+  options.native_tabs(value, false);
+}
+```
+
+---
+
+### newtab_url
+
+<ParamField path="newtab_url" type="string" default="about:newtab">
+  The URL to load when a new tab is created. May be a local file (`file:///path/to/page.html`) or any other URL.
+</ParamField>
+
+```typescript
+glide.o.newtab_url = "https://example.com";
+glide.o.newtab_url = "file:///path/to/startpage.html";
+```
+
+**Implementation:**
+```typescript:browser-api.mts:163-170
+#newtab_url = "about:newtab";
+get newtab_url() {
+  return this.#newtab_url;
+}
+set newtab_url(value: string) {
+  this.#newtab_url = value;
+  options.newtab_url(value, false);
+}
+```
+
+---
+
+### go_next_patterns
+
+<ParamField path="go_next_patterns" type="string[]" default='["next", "more", "newer", ">", ">", "›", "→", "»", "≫", ">>"]'>
+  Element text patterns to search for in the `:go_next` excmd.
+</ParamField>
+
+```typescript
+glide.o.go_next_patterns = ["next", "forward", ">"];
+```
+
+---
+
+### go_previous_patterns
+
+<ParamField path="go_previous_patterns" type="string[]" default='["prev", "previous", "back", "older", "<", "‹", "←", "«", "≪", "<<"]'>
+  Element text patterns to search for in the `:go_previous` excmd.
+</ParamField>
+
+```typescript
+glide.o.go_previous_patterns = ["prev", "back", "<"];
+```
+
+---
+
+### keyboard_layout
+
+<ParamField path="keyboard_layout" type="string" default="qwerty">
+  The keyboard layout to use when `keymaps_use_physical_layout` is set to `"force"`.
+  
+  The only layout supported by default is `"qwerty"`. See `keyboard_layouts` for how to add custom layouts.
+</ParamField>
+
+```typescript
+glide.o.keyboard_layout = "qwerty";
+```
+
+---
+
+### keyboard_layouts
+
+<ParamField path="keyboard_layouts" type="object">
+  The supported keyboard layouts. Each entry maps a key code to the string (and shifted string) used in Glide keymappings.
+</ParamField>
+
+```typescript
+// Add a custom layout
+declare global {
+  interface GlideKeyboardLayouts {
+    dvorak: GlideKeyboardLayout;
+  }
+}
+
+glide.o.keyboard_layouts.dvorak = {
+  Minus: ["[", "{"],
+  // ... more key mappings
+};
+glide.o.keyboard_layout = "dvorak";
+```
+
+---
+
+### keymaps_use_physical_layout
+
+<ParamField path="keymaps_use_physical_layout" type="'never' | 'for_macos_option_modifier' | 'force'" default="for_macos_option_modifier">
+  Determines whether keymappings resolve from the key event `code` (physical key) or `key` (OS-resolved string).
+  
+  - `"never"` - Always use `event.key`
+  - `"force"` - Always use `event.code`
+  - `"for_macos_option_modifier"` - Use `event.code` on macOS when Option is held, `event.key` otherwise
+  
+  Setting to `"force"` is recommended for users with multiple or non-English keyboard layouts.
+</ParamField>
+
+```typescript
+glide.o.keymaps_use_physical_layout = "force";
+```
+
+---
+
+### scroll_implementation
+
+<ParamField path="scroll_implementation" type="'keys' | 'legacy'" default="keys">
+  Configure the strategy for implementing scrolling. This affects the `h`, `j`, `k`, `l`, `<C-u>`, `<C-d>`, `G`, and `gg` mappings.
+  
+  **Note:** This will be removed in the future when the kinks with the `keys` implementation are ironed out.
+</ParamField>
+
+```typescript
+glide.o.scroll_implementation = "legacy";
+```
+
+---
+
+## Custom Options
+
+You can define custom options by declaration merging:
+
+```typescript
+declare global {
+  interface GlideOptions {
+    my_custom_option?: boolean;
+    my_timeout?: number;
+  }
+}
+
+glide.o.my_custom_option = true;
+glide.o.my_timeout = 1000;
+```

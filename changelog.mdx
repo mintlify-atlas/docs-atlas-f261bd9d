@@ -1,0 +1,380 @@
+---
+title: Changelog
+description: Release notes and version history for Glide Browser
+---
+
+All notable changes to Glide Browser are documented here. The project follows semantic versioning with alpha releases.
+
+## 0.1.59a
+
+### Breaking Changes
+
+#### Diacritic Keymaps on macOS
+
+Previously on macOS, if you wanted to define a keymap with the Option key, you had to use the diacritic version of the key as macOS uses Option to enable [diacritics](https://support.apple.com/guide/mac-help/mh27474/mac).
+
+By default, Glide will now use the physical key pressed instead of the diacritic:
+
+```typescript
+// Before
+glide.keymaps.set("normal", "<A-π>", "tab_pin");
+
+// After
+glide.keymaps.set("normal", "<A-p>", "tab_pin");
+```
+
+See the [Key codes](keys#key-codes) documentation for more information.
+
+### New Features
+
+#### Findbar API
+
+Support for programmatically operating the Firefox findbar. You can now open/close the findbar and traverse through matches directly from the config.
+
+**API methods**:
+- `glide.findbar.open()`
+- `glide.findbar.next_match()`
+- `glide.findbar.previous_match()`
+- `glide.findbar.close()`
+- `glide.findbar.is_open()`
+- `glide.findbar.is_focused()`
+
+Example - open findbar with selected text:
+
+```typescript
+glide.keymaps.set("normal", "~", async ({ tab_id }) => {
+  const selected = await glide.content.execute(
+    () => window.getSelection()?.toString(),
+    { tab_id }
+  );
+  if (!selected) {
+    throw new Error("No text selected in the page");
+  }
+  await glide.findbar.open({ query: selected });
+});
+```
+
+#### Previous/Next Link Following
+
+New default keymappings `[[` and `]]` in normal mode automatically follow "previous" and "next" links.
+
+- Works by searching for link elements containing specific text (e.g., "next", "more")
+- Selects the element at the bottom of the page when multiple matches are found
+- Customize search patterns with `glide.o.go_next_patterns` and `glide.o.go_previous_patterns`
+
+#### Customizable Keyboard Layouts
+
+Resolve keymaps from the physical key pressed instead of the software layout's key string.
+
+**Important for users with multiple keyboard layouts** - no need to define keymaps multiple times:
+
+```typescript
+// Before
+glide.keymaps.set("normal", "<C-t>", "tab_prev"); // english
+glide.keymaps.set("normal", "<C-т>", "tab_prev"); // russian
+
+// After
+glide.o.keyboard_layout = "qwerty";
+glide.o.keymaps_use_physical_layout = "force";
+glide.keymaps.set("normal", "<C-t>", "tab_prev");
+```
+
+<Note>
+  The default keyboard layout is US qwerty. If you use a different layout, see the `glide.o.keyboard_layouts` option.
+</Note>
+
+#### Half Page Scrolling
+
+The `<C-d>` and `<C-u>` keymaps now scroll half pages instead of full pages to match Vim behavior more closely.
+
+### Changes
+
+- Bumped Firefox from 148.0b4 to 148.0b15
+- Blocked AI link previews by default
+- Enabled Firefox's experimental AI controls UI
+- Added `glide.tabs.unload()`
+- Added `glide.prefs.scoped()` for temporarily setting prefs with the `using` keyword
+- Added `DOM.listeners.has()` for checking if an element has a specific event listener type
+- Added support for installing addons in private browsing mode with `glide.addons.install('...', { private_browsing_allowed: true })`
+- Added `--glide-current-mode-color` CSS variable for easier mode-specific UI customisation (thanks [@45Hnri](https://github.com/45Hnri)!)
+- Added `:tab_reopen` to open the most recently closed tab
+- Added the `^` motion in normal mode (thanks [@suveshmoza](https://github.com/suveshmoza)!)
+
+### Bug Fixes
+
+- Fixed the `I` motion crossing multiple lines (thanks [@suveshmoza](https://github.com/suveshmoza)!)
+- Fixed (partially) an issue where `glide.keys.next()` promises could hang around after config reloads
+
+## 0.1.58a
+
+### Experimental Windows Support
+
+This release adds support for Windows!
+
+<Warning>
+  Windows support is marked as experimental. The binaries are not signed yet, so Windows will warn about an "unknown publisher". Please [report issues](https://github.com/glide-browser/glide/discussions/new?category=issue-triage) if you encounter them!
+</Warning>
+
+### Changes
+
+- Bumped Firefox from 147.0b8 to 148.0b4
+- Added process output helpers: `await process.stdout.text()`, `await process.stdout.lines()`
+- Added support for writing to process stdin with `await process.stdin.write("data")` (thanks [@philocalyst](https://github.com/philocalyst)!)
+- Added support for registering event listeners in the browser UI
+- Added `glide.o.newtab_url` for customizing the newtab page
+- Added `glide.fs.mkdir()`
+- Added `Addon.reload()` for reloading an installed addon
+- Added `Addon.type` for identifying addon type (extension, theme, etc.)
+- Added `yf` keymapping to copy the `href` of an element to the clipboard (thanks [@suveshmoza](https://github.com/suveshmoza)!)
+- Added `auto_activate: "always"` to `glide.hints.show()`
+- Promoted `glide.unstable.include()` to `glide.include()`
+- Fixed calling `glide.commandline.show()` within an excmd
+- Fixed the commandline not closing immediately if an excmd takes a long time
+- Fixed expanding `~` in the process `cwd` (thanks [@suveshmoza](https://github.com/suveshmoza)!)
+- Fixed errors while reloading the config from potentially corrupting internal state
+
+## 0.1.57a
+
+### Search Engine Configuration
+
+Configure new search engines directly in the Glide config:
+
+```typescript
+glide.search_engines.add({
+  name: "Discogs",
+  keyword: "disc",
+  search_url: "https://www.discogs.com/search/?q={searchTerms}",
+  favicon_url: "https://www.discogs.com/favicon.ico", // optional
+  is_default: false, // optional
+});
+```
+
+Search using the engine by typing `disc<space>` in the address bar!
+
+### Changes
+
+- Bumped Firefox from 147.0b3 to 147.0b8
+- Improved type inference for `glide.content.execute()` params (thanks [@TomerAberbach](https://github.com/TomerAberbach)!)
+- Added support for hiding the native tab bar with `glide.o.native_tabs = "hide"` or `"autohide"` (thanks [@45Hnri](https://github.com/45Hnri)!)
+- Added `glide.styles.has()` and `glide.styles.get()`
+- Added support for overwriting existing styles with `glide.styles.add('css', { id: '...', overwrite: true })`
+- Added `:tab_pin` and `:tab_unpin` commands (thanks [@suveshmoza](https://github.com/suveshmoza)!)
+- Updated `:config_reload` to apply across all open windows
+- Updated the commandline to show suggested commands first (thanks [@jyn514](https://github.com/jyn514)!)
+- Removed Perplexity as a default search engine
+- Fixed usage of the `browser` API on privileged pages
+- Fixed permissions error when creating tabs with privileged URIs
+- Fixed `glide.bo.hint_size` styling
+- Fixed `i` sending an unnecessary `<left>` key event
+- Set up [Zulip chat](https://glide.zulipchat.com) for realtime discussion
+
+## 0.1.56a
+
+### Breaking Changes
+
+#### Hint Callback Execution
+
+The `action` and `pick` callbacks are now executed in the main process (not content process). This allows access to the `glide` API in callbacks.
+
+**Before**:
+```typescript
+glide.hints.show({
+  action: (element) => {
+    element.click();
+  },
+});
+```
+
+**After**:
+```typescript
+glide.hints.show({
+  action: async ({ content }) => {
+    await content.execute((element) => element.click());
+  },
+});
+```
+
+#### Relative Path Resolution
+
+Calls to APIs like `glide.fs.read()` with relative paths now resolve relative to the current file instead of the config file.
+
+### New Features
+
+#### Custom Hint Label Generators
+
+Override label generation for hints with custom strategies:
+
+```typescript
+glide.hints.show({
+  label_generator: async ({ content }) => {
+    const texts = await content.map((element) => element.textContent!);
+    return texts.map((text) => text.slice(0, 2));
+  },
+});
+```
+
+Thanks to [@peff](https://github.com/peff) for the contribution!
+
+### Changes
+
+- Bumped Firefox from 146.0b9 to 147.0b3
+- Added support for nested `glide.unstable.include()` calls
+- Added `glide.modes.list()` and `glide.commandline.is_active()`
+- Added support for overriding commandline custom option matching
+- Added `<CR>` keymapping to accept the hint with typed label (thanks [@peff](https://github.com/peff)!)
+- Added support for `DOM.create_element()` in the content process
+- Fixed `glide.o.switch_mode_on_focus` disabling certain mode changes
+- Fixed keymap types to allow `<leader>-`, `<<`, `<` sequences (thanks [@suveshmoza](https://github.com/suveshmoza)!)
+- Fixed repeated `glide.styles.remove()` calls
+- Fixed static properties/methods on builtin classes not being accessible
+
+## 0.1.55a
+
+### Picker API
+
+Use the commandline as a picker for arbitrary options:
+
+```typescript
+glide.keymaps.set("normal", "<leader>o", async () => {
+  const bookmarks = await browser.bookmarks.getRecent(10);
+
+  glide.commandline.show({
+    title: "bookmarks",
+    options: bookmarks.map((bookmark) => ({
+      label: bookmark.title,
+      async execute() {
+        const tab = await glide.tabs.get_first({ url: bookmark.url });
+        if (tab) {
+          await browser.tabs.update(tab.id, { active: true });
+        } else {
+          await browser.tabs.create({ active: true, url: bookmark.url });
+        }
+      },
+    })),
+  });
+});
+```
+
+### Split Views API
+
+<Warning>
+  This feature is very early in development in Firefox. There will be bugs.
+</Warning>
+
+Manage Firefox split views directly from the Glide config:
+
+```typescript
+glide.keymaps.set("normal", "<C-w>v", async ({ tab_id }) => {
+  const all_tabs = await glide.tabs.query({});
+  const current_index = all_tabs.findIndex((t) => t.id === tab_id);
+  const other = all_tabs[current_index + 1];
+  if (!other) throw new Error("No next tab");
+  glide.unstable.split_views.create([tab_id, other]);
+});
+
+glide.keymaps.set("normal", "<C-w>q", async ({ tab_id }) => {
+  glide.unstable.split_views.separate(tab_id);
+});
+```
+
+### Changes
+
+- Bumped Firefox from 146.0b4 to 146.0b9
+- Added `gU` and `gu` keymappings for URL hierarchy navigation
+- Added `CommandLineExit` autocmd
+- Added `glide.commandline.show()` and `glide.autocmds.remove()`
+- Added `glide.content.fn()` for marking callbacks as executing in content process
+- Added `glide.o.switch_mode_on_focus` for disabling automatic mode switching
+- Added `children` syntax sugar to `DOM.create_element()`
+- Made the `glide.o` type extensible
+
+## 0.1.54a
+
+### Navigation Key Changes
+
+Page navigation keys now translate to standard keys:
+- `hjkl` → arrow keys
+- `<C-u>` → `<PageUp>`
+- `<C-d>` → `<PageDown>`
+- `gg` → `<D-Up>` (macOS) or `<C-Home>` (Linux)
+- `G` → `<D-Down>` (macOS) or `<C-End>` (Linux)
+
+**Benefits**:
+- Leverage Firefox's smooth scrolling implementation
+- Better compatibility with websites and PDFs
+- Standard navigation behavior
+
+<Note>
+  Websites can now intercept navigation key events. If this causes issues, revert with:
+  
+  ```typescript
+  glide.o.scroll_implementation = "legacy";
+  ```
+</Note>
+
+### Smooth Scrolling
+
+Smooth scrolling is now enabled by default. To disable:
+
+```typescript
+glide.prefs.set("general.smoothScroll", false);
+```
+
+### Changes
+
+- Bumped Firefox from 145.0b6 to 146.0b3
+- Added `I` motion support
+- Added `<C-,>` to move focus out of the active element
+- Added `:copy` excmd
+- Added `glide.styles.remove()` for removing browser styles
+- Added opt-in support for hinting elements with `click` listeners
+- Added `glide.ctx.version` and `glide.ctx.firefox_version`
+- Added opt-in JPEG XL support (thanks [@SED4906](https://github.com/SED4906)!)
+- Removed relative path limitations in `glide.unstable.include()`
+- Fixed scrolling while editable elements are focused
+- Fixed DBus names on Linux to use `app.glide_browser` (thanks [@thomascft](https://github.com/thomascft)!)
+
+## 0.1.53a
+
+### Addons API
+
+Install addons directly from the Glide config:
+
+```typescript
+glide.addons.install(
+  "https://addons.mozilla.org/firefox/downloads/file/4598854/ublock_origin-1.67.0.xpi"
+);
+```
+
+Get the XPI URL by right-clicking "Add to Firefox" on addons.mozilla.org and selecting "Copy link".
+
+### Styles API
+
+Inject custom CSS into the browser UI:
+
+```typescript
+glide.styles.add(css`
+  #TabsToolbar {
+    visibility: collapse !important;
+  }
+`);
+```
+
+### Changes
+
+- Bumped Firefox from 144.0b9 to 145.0b6
+- Enabled WebAuthn on macOS
+- Added `glide.addons.install()`, `glide.addons.list()`, and `glide.styles.add()`
+- Added `glide.o.hint_chars`
+- Fixed the source tarball to include hidden files
+- Fixed hint label generation to avoid conflicts with hint mode keymaps (thanks [@jacobzim-stl](https://github.com/jacobzim-stl)!)
+- Fixed missing hints for elements across shadow roots
+- Fixed the commandline stealing focus after close
+
+## Earlier Releases
+
+For releases 0.1.42a through 0.1.52a, see the full [changelog on GitHub](https://github.com/glide-browser/glide/blob/main/CHANGELOG.md).
+
+### 0.1.42a
+
+Initial public release!
