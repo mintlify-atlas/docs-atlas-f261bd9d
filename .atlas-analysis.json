@@ -1,0 +1,181 @@
+{
+  "projectType": "saas",
+  "projectName": "Glide Browser",
+  "projectDescription": "An extensible and keyboard-focused web browser built on Firefox with TypeScript configuration.",
+  "theme": "aspen",
+  "primaryColor": "#5B7FFF",
+  "lightColor": "#8BA3FF",
+  "darkColor": "#3D5FCC",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/modes",
+              "concepts/keymaps",
+              "concepts/hints",
+              "concepts/configuration"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/navigation",
+              "guides/tabs",
+              "guides/customization",
+              "guides/autocmds",
+              "guides/extensions",
+              "guides/advanced-config"
+            ]
+          },
+          {
+            "group": "Features",
+            "pages": [
+              "features/modal-editing",
+              "features/keyboard-navigation",
+              "features/commandline",
+              "features/search-engines",
+              "features/split-views"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "api/overview",
+              "api/getting-started"
+            ]
+          },
+          {
+            "group": "Core API",
+            "pages": [
+              "api/context",
+              "api/options",
+              "api/keymaps",
+              "api/modes",
+              "api/autocmds"
+            ]
+          },
+          {
+            "group": "User Interface",
+            "pages": [
+              "api/hints",
+              "api/commandline",
+              "api/findbar",
+              "api/styles"
+            ]
+          },
+          {
+            "group": "Browser Control",
+            "pages": [
+              "api/tabs",
+              "api/content",
+              "api/keys",
+              "api/prefs"
+            ]
+          },
+          {
+            "group": "Extensions",
+            "pages": [
+              "api/addons",
+              "api/search-engines",
+              "api/browser-api"
+            ]
+          },
+          {
+            "group": "System Integration",
+            "pages": [
+              "api/process",
+              "api/filesystem",
+              "api/environment",
+              "api/path"
+            ]
+          },
+          {
+            "group": "Advanced",
+            "pages": [
+              "api/messengers",
+              "api/excmds",
+              "api/unstable"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Resources",
+        "groups": [
+          {
+            "group": "Community",
+            "pages": [
+              "contributing",
+              "changelog",
+              "faq"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Modal editing with Vim-inspired modes (normal, insert, visual, etc.)",
+    "Complete keyboard-driven navigation with customizable keymaps",
+    "Hints system for label-based element selection",
+    "TypeScript-based configuration with full type safety",
+    "Extensive ex command system (67+ built-in commands)",
+    "Autocmds for event-driven automation",
+    "Web Extensions API support",
+    "Custom CSS injection for browser UI customization",
+    "Process spawning and file system access from config",
+    "Buffer-local settings for per-tab configuration",
+    "Jumplist navigation history",
+    "Which-key contextual keybinding hints",
+    "Custom mode registration",
+    "Fuzzy tab search",
+    "Search engine management"
+  ],
+  "publicApiSurface": [
+    "glide.ctx - Context information (mode, version, url, os)",
+    "glide.o - Global options (mapping_timeout, hint_size, etc.)",
+    "glide.bo - Buffer-specific options",
+    "glide.g - Global variables (mapleader, etc.)",
+    "glide.keymaps - Keymap management (set, del, list)",
+    "glide.buf - Buffer-scoped APIs",
+    "glide.autocmds - Event handlers (create, remove)",
+    "glide.hints - Hints system (show, label_generators)",
+    "glide.tabs - Tab management (active, query, unload)",
+    "glide.commandline - Command line UI (show, close, is_active)",
+    "glide.excmds - Ex commands (execute, create)",
+    "glide.findbar - Native find bar (open, next_match, close)",
+    "glide.content - Content process execution (fn, execute)",
+    "glide.keys - Key event handling (send, next, parse)",
+    "glide.addons - Extension management (install, list)",
+    "glide.search_engines - Search engine management (add)",
+    "glide.styles - Custom CSS (add, remove, has, get)",
+    "glide.prefs - Firefox preferences (set, get, clear, scoped)",
+    "glide.env - Environment variables (get, set, delete)",
+    "glide.process - Process spawning (spawn, execute)",
+    "glide.path - Path utilities (cwd, home_dir, join)",
+    "glide.fs - File system (read, write, exists, stat, mkdir)",
+    "glide.messengers - Inter-process communication (create)",
+    "glide.modes - Mode registration (register, list)",
+    "glide.include - Config file inclusion",
+    "glide.unstable - Experimental APIs (split_views)",
+    "browser.* - Web Extensions API (tabs, scripting, runtime, etc.)",
+    "Ex Commands: tab, config_reload, hint, scroll_*, go_*, mode_change, etc."
+  ]
+}
